@@ -7,17 +7,18 @@ import {
   Settings2, 
   BarChart3, 
   Users, 
-  Shield 
+  Shield,
+  Database,
+  User
 } from 'lucide-react';
 
 const navigation = [
-  { name: '마켓', href: '/', icon: ShoppingBag },
   { name: '모델', href: '/models', icon: Bot },
+  { name: '데이터셋', href: '/datasets', icon: Database },
   { name: '플레이그라운드', href: '/playground', icon: PlayCircle },
   { name: '파인튜닝', href: '/finetune', icon: Settings2 },
   { name: '사용량/청구', href: '/billing', icon: BarChart3 },
-  { name: '조직', href: '/organization', icon: Users },
-  { name: '감사', href: '/audit', icon: Shield },
+  { name: '개인', href: '/personal', icon: User },
 ];
 
 export const Sidebar = () => {
