@@ -9,7 +9,6 @@ import { Creator } from './pages/Creator';
 import { FineTune } from './pages/FineTune';
 import { Billing } from './pages/Billing';
 import { Personal } from './pages/Personal';
-import { Organization } from './pages/Organization';
 import { Checkout } from './pages/Checkout';
 import { PurchaseComplete } from './pages/PurchaseComplete';
 
@@ -29,7 +28,6 @@ function App() {
           <Route path="/finetune/wizard" element={<FineTune />} />
           <Route path="/billing" element={<Billing />} />
           <Route path="/personal" element={<Personal />} />
-          <Route path="/organization" element={<Organization />} />
           <Route path="/checkout/:id" element={<Checkout />} />
           <Route path="/purchase/:txId" element={<PurchaseComplete />} />
           <Route path="/profile" element={<div className="p-6"><h1 className="text-2xl font-bold">프로필</h1><p>개발 중입니다</p></div>} />
