@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { 
   Plus, 
   Bot, 
@@ -19,6 +19,75 @@ export const Personal = () => {
   const [activeTab, setActiveTab] = useState('overview');
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [uploadType, setUploadType] = useState('model');
+
+  // ====== [업로드 기능 추가] 시작 ======
+  const SERVER_URL = import.meta.env?.VITE_SERVER_URL || 'http://3.39.195.161:3001';
+
+  const modelFileInputRef = useRef(null);
+  const datasetFileInputRef = useRef(null);
+
+  const [modelFile, setModelFile] = useState(null);
+  const [datasetFile, setDatasetFile] = useState(null);
+
+  const [modelStatus, setModelStatus] = useState('');
+  const [datasetStatus, setDatasetStatus] = useState('');
+
+  const handlePickModelFile = () => modelFileInputRef.current?.click();
+  const handlePickDatasetFile = () => datasetFileInputRef.current?.click();
+
+  const handleModelFileChange = (e) => {
+    const f = e.target.files?.[0];
+    setModelFile(f || null);
+    setModelStatus('');
+  };
+  const handleDatasetFileChange = (e) => {
+    const f = e.target.files?.[0];
+    setDatasetFile(f || null);
+    setDatasetStatus('');
+  };
+
+  const uploadToServer = async (file, setStatus) => {
+    if (!file) return;
+    if (file.size > 100 * 1024 * 1024) {
+      setStatus('❌ 파일 크기는 100MB를 초과할 수 없습니다.');
+      return;
+    }
+    setStatus('업로드 중…');
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const res = await fetch(`${SERVER_URL}/upload`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        throw new Error(text || res.statusText || 'Upload failed');
+      }
+      const data = await res.json();
+      if (!data?.success) {
+        throw new Error(data?.error || 'Upload failed');
+      }
+
+      const { ipfsHash, metadataHash, encryptionKey, gateway } = data.data || {};
+      setStatus([
+        '✅ 업로드 완료!',
+        `IPFS Hash: ${ipfsHash}`,
+        `Metadata: ${metadataHash}`,
+        `Key: ${encryptionKey}`,
+        `Gateway: ${gateway}`
+      ].join('\n'));
+    } catch (err) {
+      setStatus(`❌ 실패: ${err.message}`);
+    }
+  };
+
+  const handleModelUpload = async () => uploadToServer(modelFile, setModelStatus);
+  const handleDatasetUpload = async () => uploadToServer(datasetFile, setDatasetStatus);
+  // ====== [업로드 기능 추가] 끝 ======
 
   const tabs = [
     { id: 'overview', name: '개요', icon: BarChart3 },
@@ -371,11 +440,26 @@ export const Personal = () => {
                 <Upload className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                 <h4 className="text-lg font-medium text-gray-900 mb-2">모델 파일 업로드</h4>
                 <p className="text-gray-600 mb-4">GGUF, PyTorch, ONNX 등 지원</p>
-                <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+
+                {/* ====== [업로드 기능 추가] 파일 선택 버튼 & 숨김 input ====== */}
+                <button
+                  onClick={handlePickModelFile}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                >
                   파일 선택
                 </button>
+                <input
+                  ref={modelFileInputRef}
+                  type="file"
+                  className="hidden"
+                  onChange={handleModelFileChange}
+                />
+                {modelFile && (
+                  <p className="mt-3 text-sm text-gray-700">{modelFile.name}</p>
+                )}
               </div>
 
+              {/* 기존 폼 유지 */}
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">모델명</label>
@@ -393,6 +477,20 @@ export const Personal = () => {
                     placeholder="모델에 대한 설명을 입력하세요"
                   />
                 </div>
+
+                {/* ====== [업로드 기능 추가] 업로드 버튼 & 상태 ====== */}
+                <button
+                  onClick={handleModelUpload}
+                  className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                  disabled={!modelFile}
+                >
+                  IPFS에 업로드
+                </button>
+                {modelStatus && (
+                  <pre className="text-xs whitespace-pre-wrap text-gray-700">{modelStatus}</pre>
+                )}
+
+                {/* 기존 버튼 (모델 등록) 유지 */}
                 <button className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
                   모델 등록
                 </button>
@@ -410,11 +508,26 @@ export const Personal = () => {
                 <Upload className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                 <h4 className="text-lg font-medium text-gray-900 mb-2">데이터셋 파일 업로드</h4>
                 <p className="text-gray-600 mb-4">JSON, CSV, Parquet 등 지원</p>
-                <button className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
+
+                {/* ====== [업로드 기능 추가] 파일 선택 버튼 & 숨김 input ====== */}
+                <button
+                  onClick={handlePickDatasetFile}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                >
                   파일 선택
                 </button>
+                <input
+                  ref={datasetFileInputRef}
+                  type="file"
+                  className="hidden"
+                  onChange={handleDatasetFileChange}
+                />
+                {datasetFile && (
+                  <p className="mt-3 text-sm text-gray-700">{datasetFile.name}</p>
+                )}
               </div>
 
+              {/* 기존 폼 유지 */}
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">데이터셋명</label>
@@ -434,6 +547,20 @@ export const Personal = () => {
                     <option>음성</option>
                   </select>
                 </div>
+
+                {/* ====== [업로드 기능 추가] 업로드 버튼 & 상태 ====== */}
+                <button
+                  onClick={handleDatasetUpload}
+                  className="w-full bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
+                  disabled={!datasetFile}
+                >
+                  IPFS에 업로드
+                </button>
+                {datasetStatus && (
+                  <pre className="text-xs whitespace-pre-wrap text-gray-700">{datasetStatus}</pre>
+                )}
+
+                {/* 기존 버튼 (데이터셋 등록) 유지 */}
                 <button className="w-full bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors">
                   데이터셋 등록
                 </button>
