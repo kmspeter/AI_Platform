@@ -21,7 +21,7 @@ export const Personal = () => {
   const [uploadType, setUploadType] = useState('model');
 
   // ====== [업로드 기능 추가] 시작 ======
-  const SERVER_URL = import.meta.env?.VITE_SERVER_URL || 'http://13.125.63.0:3001';
+  const API_BASE = '/api';
 
   const modelFileInputRef = useRef(null);
   const datasetFileInputRef = useRef(null);
@@ -58,7 +58,7 @@ export const Personal = () => {
       const formData = new FormData();
       formData.append('file', file);
 
-      const res = await fetch(`${SERVER_URL}/upload`, {
+      const res = await fetch(`${API_BASE}/upload`, {
         method: 'POST',
         body: formData,
       });
