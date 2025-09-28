@@ -10,9 +10,6 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Node.js에서 fetch 사용을 위해 동적 import
-    const fetch = (await import('node-fetch')).default;
-    
     const backendUrl = 'https://kau-capstone.duckdns.org/api/models';
     
     const response = await fetch(backendUrl, {
