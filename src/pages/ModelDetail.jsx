@@ -20,16 +20,11 @@ import {
 
 // API 서비스
 const modelDetailService = {
-  baseURL: '',
-  
   async fetchModel(id, forceRefresh = false) {
     try {
-      const apiUrl = import.meta.env.NODE_ENV === 'development' 
-        ? `/api/models/${id}`
-        : `${this.baseURL}/api/models/${id}`;
+      // 쿼리 파라미터 방식으로 변경
+      const apiUrl = `/api/models?id=${id}`;
       
-      console.log('Environment:', import.meta.env.NODE_ENV);
-      console.log('Base URL:', this.baseURL);
       console.log('Model detail API 요청 URL:', apiUrl);
       
       const data = await cachedFetch(apiUrl, {
@@ -41,16 +36,9 @@ const modelDetailService = {
         forceRefresh
       }, 10 * 60 * 1000);
       
-      console.log('Model detail API response:', data);
-      
       return this.transformModel(data);
     } catch (error) {
       console.error('Failed to fetch model detail:', error);
-      
-      if (error instanceof TypeError && error.message.includes('fetch')) {
-        throw new Error(`네트워크 연결을 확인해주세요. API 서버(${this.baseURL})에 접근할 수 없습니다.`);
-      }
-      
       throw error;
     }
   },
