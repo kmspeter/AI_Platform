@@ -9,7 +9,7 @@ import { ComparisonOverlay } from '../components/market/ComparisonOverlay';
 // API 서비스 함수
 const apiService = {
   // 환경변수 기반 baseURL 설정
-  baseURL: 'https://kau-capstone.duckdns.org',
+  baseURL: '',
   
   async fetchModels(forceRefresh = false) {
     try {

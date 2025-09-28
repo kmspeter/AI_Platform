@@ -20,7 +20,7 @@ import {
 
 // API 서비스
 const modelDetailService = {
-  baseURL: 'https://kau-capstone.duckdns.org',
+  baseURL: '',
   
   async fetchModel(id, forceRefresh = false) {
     try {
