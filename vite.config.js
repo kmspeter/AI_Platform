@@ -7,4 +7,14 @@ export default defineConfig({
   optimizeDeps: {
     exclude: ['lucide-react'],
   },
+  server: {
+    proxy: {
+      '/api': {
+        target: 'https://kau-capstone.duckdns.org/',
+        changeOrigin: true,
+        // 필요하면:
+        // rewrite: (path) => path.replace(/^\/api/, '/api'),
+      },
+    },
+  },
 });

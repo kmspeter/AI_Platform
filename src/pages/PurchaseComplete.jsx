@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { 
   CheckCircle, 
   ExternalLink, 
@@ -14,13 +14,18 @@ import { Link } from 'react-router-dom';
 
 export const PurchaseComplete = () => {
   const { txId } = useParams();
+  const [searchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState('typescript');
   const [sessionToken, setSessionToken] = useState('');
   const [tokenExpiry, setTokenExpiry] = useState(null);
 
+  // URL 파라미터에서 추가 정보 가져오기
+  const accessPassId = searchParams.get('passId') || 'pass_abc123';
+  const modelId = searchParams.get('modelId') || 'gpt-4-turbo';
+
   const accessPass = {
-    id: 'pass_abc123',
-    modelId: 'gpt-4-turbo',
+    id: accessPassId,
+    modelId: modelId,
     modelName: 'GPT-4 Turbo',
     plan: '표준',
     expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
@@ -137,6 +142,10 @@ curl -X POST "https://api.modelhub.ai/v1/chat/completions" \\
             <span className="font-mono">{txId || '0xabc123...'}</span>
             <ExternalLink className="h-3 w-3" />
           </button>
+        </div>
+        <div className="flex items-center justify-center space-x-2 mt-2">
+          <span className="text-sm text-gray-600">네트워크:</span>
+          <span className="text-sm font-medium text-purple-600">Solana</span>
         </div>
       </div>
 

@@ -1,12 +1,136 @@
-import React, { useState, useMemo } from 'react';
-import { ShoppingBag } from 'lucide-react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { ShoppingBag, AlertCircle, Loader2 } from 'lucide-react';
+import { cachedFetch, apiCache } from '../utils/apiCache';
 import { FilterBar } from '../components/market/FilterBar';
 import { ModelCard } from '../components/market/ModelCard';
 import { ComparisonBar } from '../components/market/ComparisonBar';
 import { ComparisonOverlay } from '../components/market/ComparisonOverlay';
-import { mockModels } from '../utils/mockData';
+
+// API 서비스 함수
+const apiService = {
+  baseURL: '',
+  
+  async fetchModels(forceRefresh = false) {
+    try {
+      const apiUrl = `/api/models`;
+      console.log('API 요청 URL:', apiUrl);
+            
+      const data = await cachedFetch(apiUrl, {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' },
+        forceRefresh
+      }, 5 * 60 * 1000); // 5분 캐시
+      
+      console.log('API Response:', data);
+      
+      if (!Array.isArray(data)) {
+        throw new Error('서버 응답이 배열 형태가 아닙니다.');
+      }
+      
+      return data.map(model => this.transformModel(model));
+    } catch (error) {
+      console.error('Failed to fetch models:', error);
+      
+      // 네트워크 에러 처리
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        throw new Error('네트워크 연결을 확인해주세요. API 서버에 접근할 수 없습니다.');
+      }
+      
+      throw error;
+    }
+  },
+  
+  transformModel(apiModel) {
+    try {
+      console.log('Transforming model:', apiModel);
+      
+      // API 응답을 프론트엔드 형식으로 변환
+      let transformedMetrics = {};
+      
+      if (apiModel.metrics) {
+        if (typeof apiModel.metrics === 'object') {
+          // metrics가 객체인 경우 (일반적인 경우)
+          Object.keys(apiModel.metrics).forEach(key => {
+            if (key === 'raw') {
+              // raw 필드가 있는 경우 파싱 시도
+              try {
+                const rawMetrics = JSON.parse(apiModel.metrics.raw);
+                if (Array.isArray(rawMetrics)) {
+                  rawMetrics.forEach(metric => {
+                    if (metric && metric.code && metric.value !== undefined) {
+                      transformedMetrics[metric.code] = parseFloat(metric.value) || 0;
+                    }
+                  });
+                }
+              } catch (e) {
+                console.warn('Failed to parse raw metrics:', apiModel.metrics.raw, e);
+              }
+            } else {
+              // 일반 메트릭 필드
+              transformedMetrics[key] = parseFloat(apiModel.metrics[key]) || 0;
+            }
+          });
+        } else if (typeof apiModel.metrics === 'string') {
+          // metrics가 문자열인 경우
+          try {
+            const parsedMetrics = JSON.parse(apiModel.metrics);
+            if (Array.isArray(parsedMetrics)) {
+              parsedMetrics.forEach(metric => {
+                if (metric && metric.code && metric.value !== undefined) {
+                  transformedMetrics[metric.code] = parseFloat(metric.value) || 0;
+                }
+              });
+            }
+          } catch (e) {
+            console.warn('Failed to parse metrics string:', apiModel.metrics, e);
+          }
+        }
+      }
+      
+      const transformed = {
+        id: apiModel.id?.toString() || Math.random().toString(36).substr(2, 9),
+        name: apiModel.name || 'Unknown Model',
+        creator: apiModel.uploader || 'Unknown Creator',
+        modality: apiModel.modality || 'text',
+        license: apiModel.license || 'unknown',
+        pricing: {
+          type: apiModel.priceStandard > 0 ? 'paid' : 'free',
+          amount: parseFloat(apiModel.priceStandard) || 0,
+          currency: apiModel.currency || 'USDC'
+        },
+        metrics: transformedMetrics,
+        downloads: Math.floor(Math.random() * 10000), // API에 없는 데이터는 임시값
+        tags: [], // API에 없는 데이터는 빈 배열
+        description: `${apiModel.name || 'Unknown Model'} - ${apiModel.modality || 'AI'} 모델입니다.`,
+      };
+      
+      console.log('Transformed model:', transformed);
+      return transformed;
+      
+    } catch (error) {
+      console.error('Error transforming model:', apiModel, error);
+      // 기본값으로 fallback
+      return {
+        id: Math.random().toString(36).substr(2, 9),
+        name: 'Error Model',
+        creator: 'Unknown',
+        modality: 'text',
+        license: 'unknown',
+        pricing: { type: 'free', amount: 0, currency: 'USDC' },
+        metrics: {},
+        downloads: 0,
+        tags: [],
+        description: '모델 정보를 불러오는 중 오류가 발생했습니다.',
+      };
+    }
+  }
+};
 
 export const Market = () => {
+  const [models, setModels] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  
   const [filters, setFilters] = useState({
     search: '',
     modality: [],
@@ -18,28 +142,76 @@ export const Market = () => {
   const [comparison, setComparison] = useState([]);
   const [showComparison, setShowComparison] = useState(false);
 
+  // 새로고침 함수
+  const refreshModels = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const fetchedModels = await apiService.fetchModels(true); // 강제 새로고침
+      console.log('Refreshed models:', fetchedModels);
+      setModels(fetchedModels);
+    } catch (err) {
+      console.error('Error refreshing models:', err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // API에서 모델 데이터 로드
+  useEffect(() => {
+    const loadModels = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const fetchedModels = await apiService.fetchModels();
+        console.log('Loaded models:', fetchedModels);
+        setModels(fetchedModels);
+      } catch (err) {
+        console.error('Error loading models:', err);
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadModels();
+  }, []);
+
   const filteredModels = useMemo(() => {
-    return mockModels.filter(model => {
-      if (filters.search && !model.name.toLowerCase().includes(filters.search.toLowerCase()) && 
+    return models.filter(model => {
+      // 검색 필터
+      if (filters.search && 
+          !model.name.toLowerCase().includes(filters.search.toLowerCase()) && 
           !model.creator.toLowerCase().includes(filters.search.toLowerCase())) {
         return false;
       }
+      
+      // 모달리티 필터
       if (filters.modality.length > 0 && !filters.modality.includes(model.modality)) {
         return false;
       }
+      
+      // 라이센스 필터
       if (filters.license.length > 0 && !filters.license.includes(model.license)) {
         return false;
       }
+      
+      // 가격 범위 필터
       if (model.pricing.type === 'paid' && model.pricing.amount > filters.priceRange[1]) {
         return false;
       }
-      const maxMetric = Math.max(...Object.values(model.metrics));
+      
+      // 성능 필터
+      const metricValues = Object.values(model.metrics);
+      const maxMetric = metricValues.length > 0 ? Math.max(...metricValues) : 0;
       if (maxMetric < filters.minPerformance) {
         return false;
       }
+      
       return true;
     });
-  }, [filters]);
+  }, [models, filters]);
 
   const handleAddToComparison = (model) => {
     const existingIndex = comparison.findIndex(item => item.model.id === model.id);
@@ -61,6 +233,53 @@ export const Market = () => {
   const handleCompare = () => {
     setShowComparison(true);
   };
+
+  const handleRetry = () => {
+    const loadModels = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const fetchedModels = await apiService.fetchModels();
+        setModels(fetchedModels);
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadModels();
+  };
+
+  // 로딩 상태
+  if (loading) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin text-blue-600 mx-auto mb-4" />
+          <p className="text-gray-600">모델 데이터를 불러오는 중...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // 에러 상태
+  if (error) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <div className="text-center">
+          <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">데이터를 불러올 수 없습니다</h3>
+          <p className="text-gray-600 mb-4">{error}</p>
+          <button
+            onClick={handleRetry}
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            다시 시도
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1">
@@ -151,7 +370,16 @@ export const Market = () => {
         <div className="flex-1 p-6">
           <div className="mb-6">
             <h1 className="text-2xl font-bold text-gray-900">AI 모델 마켓</h1>
-            <p className="text-gray-600 mt-1">{filteredModels.length}개의 모델이 있습니다</p>
+            <div className="flex items-center justify-between mt-1">
+              <p className="text-gray-600">{filteredModels.length}개의 모델이 있습니다</p>
+              <button
+                onClick={refreshModels}
+                disabled={loading}
+                className="text-sm text-blue-600 hover:text-blue-700 font-medium disabled:opacity-50"
+              >
+                새로고침
+              </button>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 mb-20">
@@ -165,7 +393,7 @@ export const Market = () => {
             ))}
           </div>
 
-          {filteredModels.length === 0 && (
+          {filteredModels.length === 0 && !loading && (
             <div className="text-center py-12">
               <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <ShoppingBag className="h-8 w-8 text-gray-400" />

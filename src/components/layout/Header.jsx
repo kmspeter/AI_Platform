@@ -1,18 +1,69 @@
 import React, { useState } from 'react';
-import { Search, Bell, ChevronDown, User, Wallet, Wifi } from 'lucide-react';
+import { Search, Bell, ChevronDown, User, Wallet, Wifi, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
+import { phantomWallet } from '../../utils/phantomWallet';
+import { SearchOverlay } from '../search/SearchOverlay';
 
-export const Header = ({ user, onWalletConnect }) => {
+export const Header = ({ onWalletConnect }) => {
+  const { user, updateUser, logout } = useAuth();
   const [searchValue, setSearchValue] = useState('');
+  const [showSearch, setShowSearch] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showStatusDetail, setShowStatusDetail] = useState(false);
 
   const notifications = [
-    { id: 1, type: 'training', message: '모델 훈련이 완료되었습니다', time: '5분 전' },
+    { id: 1, type: 'system', message: '새로운 모델이 업데이트되었습니다', time: '30분 전' },
     { id: 2, type: 'payment', message: '결제가 처리되었습니다', time: '1시간 전' },
     { id: 3, type: 'session', message: '새 세션이 생성되었습니다', time: '2시간 전' }
   ];
+
+  const connectPhantomWallet = async () => {
+    if (!phantomWallet.isPhantomInstalled()) {
+      alert('팬텀 지갑이 설치되지 않았습니다. https://phantom.app/ 에서 설치해주세요.');
+      return;
+    }
+
+    try {
+      const connection = await phantomWallet.connect();
+      const address = connection.publicKey;
+      
+      updateUser({
+        wallet: {
+          connected: true,
+          address: address,
+          network: 'Solana',
+          provider: 'Phantom'
+        }
+      });
+    } catch (error) {
+      console.error('Phantom wallet connection failed:', error);
+      if (error.code === 4001) {
+        alert('지갑 연결이 거부되었습니다.');
+      } else {
+        alert('지갑 연결에 실패했습니다.');
+      }
+    }
+  };
+
+  const handleWalletConnect = () => {
+    if (user?.wallet?.connected) {
+      // 지갑 연결 해제
+      phantomWallet.disconnect();
+      updateUser({
+        wallet: {
+          connected: false,
+          address: null,
+          network: null,
+          provider: null
+        }
+      });
+    } else {
+      // 팬텀 지갑 연결 시도
+      connectPhantomWallet();
+    }
+  };
 
   return (
     <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
@@ -37,10 +88,32 @@ export const Header = ({ user, onWalletConnect }) => {
               <input
                 type="text"
                 value={searchValue}
-                onChange={(e) => setSearchValue(e.target.value)}
+                onChange={(e) => {
+                  setSearchValue(e.target.value);
+                  if (e.target.value.trim()) {
+                    setShowSearch(true);
+                  }
+                }}
+                onFocus={() => {
+                  if (searchValue.trim()) {
+                    setShowSearch(true);
+                  }
+                }}
                 className="block w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
                 placeholder="모델 검색 (자연어·태그 혼합)"
               />
+              
+              {/* Search Overlay */}
+              {showSearch && (
+                <SearchOverlay
+                  query={searchValue}
+                  onClose={() => setShowSearch(false)}
+                  onSelect={(item) => {
+                    setSearchValue('');
+                    setShowSearch(false);
+                  }}
+                />
+              )}
             </div>
           </div>
 
@@ -113,11 +186,20 @@ export const Header = ({ user, onWalletConnect }) => {
 
             {/* Wallet Connection - Text Button with Icon */}
             <button
-              onClick={onWalletConnect}
-              className="flex items-center space-x-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+              onClick={handleWalletConnect}
+              className={`flex items-center space-x-2 px-4 py-2.5 rounded-lg transition-colors text-sm font-medium ${
+                user?.wallet?.connected 
+                  ? 'bg-green-600 text-white hover:bg-green-700' 
+                  : 'bg-purple-600 text-white hover:bg-purple-700'
+              }`}
             >
               <Wallet className="h-4 w-4" />
-              <span>{user?.wallet?.connected ? '지갑 연결됨' : '지갑 연결'}</span>
+              <span>
+                {user?.wallet?.connected 
+                  ? `${user.wallet.address?.slice(0, 4)}...${user.wallet.address?.slice(-4)}` 
+                  : '지갑 연결'
+                }
+              </span>
             </button>
 
             {/* User Avatar */}
@@ -134,6 +216,15 @@ export const Header = ({ user, onWalletConnect }) => {
 
               {showUserMenu && (
                 <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1">
+                  <div className="px-4 py-2 border-b border-gray-100">
+                    <p className="text-sm font-medium text-gray-900">{user?.name}</p>
+                    <p className="text-xs text-gray-600">{user?.email}</p>
+                    {user?.wallet?.connected && (
+                      <p className="text-xs text-purple-600 mt-1">
+                        {user.wallet.provider} 연결됨
+                      </p>
+                    )}
+                  </div>
                   <Link to="/profile" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
                     프로필
                   </Link>
@@ -141,7 +232,10 @@ export const Header = ({ user, onWalletConnect }) => {
                     설정
                   </Link>
                   <div className="border-t border-gray-100 mt-1 pt-1">
-                    <button className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                    <button 
+                      onClick={logout}
+                      className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                    >
                       로그아웃
                     </button>
                   </div>
@@ -151,6 +245,14 @@ export const Header = ({ user, onWalletConnect }) => {
           </div>
         </div>
       </div>
+      
+      {/* Search Overlay Background */}
+      {showSearch && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-25 z-40"
+          onClick={() => setShowSearch(false)}
+        />
+      )}
     </header>
   );
 };

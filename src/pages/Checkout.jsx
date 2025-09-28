@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
-import { Wallet, Check, ExternalLink, AlertCircle, CreditCard } from 'lucide-react';
+import { Wallet, Check, ExternalLink, AlertCircle, CreditCard, Loader2 } from 'lucide-react';
+import { phantomWallet } from '../utils/phantomWallet';
 
 export const Checkout = () => {
   const { id } = useParams();
@@ -11,6 +12,10 @@ export const Checkout = () => {
   const [selectedWallet, setSelectedWallet] = useState('');
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [agreedToPrivacy, setAgreedToPrivacy] = useState(false);
+  const [paymentLoading, setPaymentLoading] = useState(false);
+  const [paymentError, setPaymentError] = useState('');
+  const [paymentSuccess, setPaymentSuccess] = useState(false);
+  const [transactionResult, setTransactionResult] = useState(null);
 
   const steps = [
     { number: 1, title: '지갑 연결', description: '결제를 위해 지갑을 연결하세요' },
@@ -30,19 +35,90 @@ export const Checkout = () => {
       : ['상업적', 'API 액세스', '배포허용', '수정가능']
   };
 
-  const walletOptions = [
-    { id: 'metamask', name: 'MetaMask', icon: '🦊' },
-    { id: 'phantom', name: 'Phantom', icon: '👻' },
-    { id: 'coinbase', name: 'Coinbase Wallet', icon: '🔵' }
-  ];
-
-  const handleWalletConnect = (walletId) => {
-    setSelectedWallet(walletId);
-    setWalletConnected(true);
-    setCurrentStep(2);
+  const handlePhantomConnect = async () => {
+    try {
+      setPaymentError('');
+      const connection = await phantomWallet.connect();
+      setSelectedWallet('phantom');
+      setWalletConnected(true);
+      setCurrentStep(2);
+    } catch (error) {
+      setPaymentError(error.message);
+    }
   };
 
   const canProceedToPayment = agreedToTerms && agreedToPrivacy;
+
+  const handlePayment = async () => {
+    if (!canProceedToPayment) return;
+    
+    setPaymentLoading(true);
+    setPaymentError('');
+    
+    try {
+      // 1. 결제 데이터 준비
+      const paymentData = {
+        modelId: id,
+        plan: plan,
+        amount: modelInfo.price + 2.5,
+        currency: 'USDC',
+        timestamp: Date.now(),
+        recipient: '0xModelHub...' // 실제 환경에서는 백엔드에서 제공
+      };
+
+      // 2. 팬텀 지갑으로 트랜잭션 서명
+      console.log('Requesting transaction signature...');
+      const signedTransaction = await phantomWallet.signTransaction(paymentData);
+      
+      console.log('✅ Transaction signed successfully!');
+      
+      // 3. 백엔드로 전송될 데이터 출력
+      const backendPayload = {
+        signature: signedTransaction.signature,
+        publicKey: signedTransaction.publicKey,
+        transactionData: signedTransaction.transactionData,
+        message: signedTransaction.message,
+        metadata: {
+          modelId: id,
+          plan: plan,
+          amount: modelInfo.price + 2.5,
+          timestamp: paymentData.timestamp
+        }
+      };
+      
+      console.log('📤 Data to be sent to backend:');
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      console.log(JSON.stringify(backendPayload, null, 2));
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      
+      // 백엔드 구현 전 - 임시로 성공 응답 시뮬레이션
+      console.log('⏳ Simulating backend processing (2 seconds)...');
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      const result = {
+        success: true,
+        transactionHash: '0x' + Math.random().toString(16).substr(2, 64),
+        accessPassId: 'pass_' + Math.random().toString(36).substr(2, 9),
+        message: '결제가 성공적으로 처리되었습니다.'
+      };
+
+      console.log('✅ Backend response (simulated):', result);
+
+      setTransactionResult(result);
+      setPaymentSuccess(true);
+      
+      // 성공 후 결과 페이지로 이동 (3초 후)
+      setTimeout(() => {
+        window.location.href = `/purchase/${result.transactionHash}`;
+      }, 3000);
+
+    } catch (error) {
+      console.error('❌ Payment error:', error);
+      setPaymentError(error.message || '결제 처리 중 오류가 발생했습니다.');
+    } finally {
+      setPaymentLoading(false);
+    }
+  };
 
   return (
     <div className="flex-1 max-w-6xl mx-auto p-6">
@@ -172,23 +248,42 @@ export const Checkout = () => {
               {currentStep === 1 && (
                 <div className="text-center py-8">
                   <Wallet className="h-16 w-16 text-gray-400 mx-auto mb-6" />
-                  <h4 className="text-lg font-semibold text-gray-900 mb-2">지갑을 연결하세요</h4>
-                  <p className="text-gray-600 mb-8">결제를 진행하려면 지갑 연결이 필요합니다</p>
+                  <h4 className="text-lg font-semibold text-gray-900 mb-2">팬텀 지갑 연결</h4>
+                  <p className="text-gray-600 mb-8">Solana 기반 결제를 위해 팬텀 지갑을 연결해주세요</p>
                   
-                  <div className="grid grid-cols-1 gap-4 max-w-md mx-auto">
-                    {walletOptions.map(wallet => (
-                      <button
-                        key={wallet.id}
-                        onClick={() => handleWalletConnect(wallet.id)}
-                        className="flex items-center space-x-3 p-4 border border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors"
-                      >
-                        <span className="text-2xl">{wallet.icon}</span>
-                        <div className="text-left">
-                          <div className="font-medium text-gray-900">{wallet.name}</div>
-                          <div className="text-sm text-gray-600">지갑 연결</div>
-                        </div>
-                      </button>
-                    ))}
+                  {paymentError && (
+                    <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+                      <p className="text-red-700 text-sm">{paymentError}</p>
+                    </div>
+                  )}
+
+                  <div className="max-w-md mx-auto">
+                    <button
+                      onClick={handlePhantomConnect}
+                      className="flex items-center justify-center space-x-3 w-full p-4 border border-gray-300 rounded-lg hover:border-purple-500 hover:bg-purple-50 transition-colors"
+                    >
+                      <span className="text-2xl">👻</span>
+                      <div className="text-left">
+                        <div className="font-medium text-gray-900">Phantom Wallet</div>
+                        <div className="text-sm text-gray-600">Solana 지갑 연결</div>
+                      </div>
+                    </button>
+                    
+                    {!phantomWallet.isPhantomInstalled() && (
+                      <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                        <p className="text-yellow-800 text-sm">
+                          팬텀 지갑이 설치되지 않았습니다. 
+                          <a 
+                            href="https://phantom.app/" 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-yellow-900 underline ml-1"
+                          >
+                            여기서 설치
+                          </a>
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -201,8 +296,7 @@ export const Checkout = () => {
                       <h4 className="font-semibold text-green-800">지갑 연결됨</h4>
                     </div>
                     <p className="text-sm text-green-700 mt-1">
-                      {selectedWallet === 'metamask' ? 'MetaMask' : selectedWallet === 'phantom' ? 'Phantom' : 'Coinbase Wallet'} - 
-                      0x1234...5678 (Ethereum)
+                      Phantom Wallet - {phantomWallet.getConnectionStatus().publicKey?.slice(0, 4)}...{phantomWallet.getConnectionStatus().publicKey?.slice(-4)} (Solana)
                     </p>
                   </div>
 
@@ -252,11 +346,46 @@ export const Checkout = () => {
 
               {currentStep === 3 && (
                 <div className="text-center py-8">
+                  {paymentSuccess ? (
+                    <div>
+                      <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                        <Check className="h-8 w-8 text-green-600" />
+                      </div>
+                      <h4 className="text-lg font-semibold text-gray-900 mb-2">결제 완료!</h4>
+                      <p className="text-gray-600 mb-6">트랜잭션이 성공적으로 처리되었습니다.</p>
+                      
+                      {transactionResult && (
+                        <div className="bg-green-50 rounded-lg p-4 mb-6">
+                          <div className="text-sm text-green-800 space-y-1">
+                            <div>트랜잭션 해시: <code className="font-mono">{transactionResult.transactionHash}</code></div>
+                            <div>Access Pass ID: <code className="font-mono">{transactionResult.accessPassId}</code></div>
+                          </div>
+                        </div>
+                      )}
+                      
+                      <p className="text-sm text-gray-600">잠시 후 결과 페이지로 이동합니다...</p>
+                    </div>
+                  ) : (
+                    <div>
                   <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                    <CreditCard className="h-8 w-8 text-blue-600" />
+                        {paymentLoading ? (
+                          <Loader2 className="h-8 w-8 text-blue-600 animate-spin" />
+                        ) : (
+                          <CreditCard className="h-8 w-8 text-blue-600" />
+                        )}
                   </div>
-                  <h4 className="text-lg font-semibold text-gray-900 mb-2">트랜잭션 서명</h4>
-                  <p className="text-gray-600 mb-8">지갑에서 트랜잭션에 서명하여 결제를 완료하세요</p>
+                      <h4 className="text-lg font-semibold text-gray-900 mb-2">
+                        {paymentLoading ? '결제 처리 중...' : '결제 승인'}
+                      </h4>
+                      <p className="text-gray-600 mb-8">
+                        {paymentLoading ? '팬텀 지갑에서 트랜잭션을 확인하고 서명해주세요' : '아래 버튼을 클릭하여 결제를 진행하세요'}
+                      </p>
+                      
+                      {paymentError && (
+                        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+                          <p className="text-red-700 text-sm">{paymentError}</p>
+                        </div>
+                      )}
                   
                   <div className="bg-gray-50 rounded-lg p-4 mb-6">
                     <div className="text-sm text-gray-600 space-y-1">
@@ -269,24 +398,37 @@ export const Checkout = () => {
                         <span className="font-medium">${modelInfo.price + 2.5} USDC</span>
                       </div>
                       <div className="flex justify-between">
-                        <span>가스비:</span>
-                        <span>~$0.50</span>
+                            <span>네트워크:</span>
+                            <span>Solana</span>
                       </div>
                     </div>
                   </div>
                   
-                  <button className="bg-green-600 text-white px-8 py-3 rounded-lg font-medium hover:bg-green-700 transition-colors shadow-sm">
-                    서명 및 전송
+                      <button 
+                        onClick={handlePayment}
+                        disabled={paymentLoading}
+                        className="bg-green-600 text-white px-8 py-3 rounded-lg font-medium hover:bg-green-700 transition-colors shadow-sm disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center space-x-2 mx-auto"
+                      >
+                        {paymentLoading ? (
+                          <>
+                            <Loader2 className="h-5 w-5 animate-spin" />
+                            <span>처리 중...</span>
+                          </>
+                        ) : (
+                          <span>결제 승인</span>
+                        )}
                   </button>
                   
                   <div className="mt-8 p-4 bg-blue-50 border border-blue-200 rounded-lg">
                     <div className="flex items-start space-x-2">
                       <AlertCircle className="h-5 w-5 text-blue-600 mt-0.5" />
                       <p className="text-sm text-blue-800">
-                        완료 후 Access Pass가 발급되어 즉시 모델 사용이 가능합니다
+                            결제 완료 후 Access Pass가 발급되어 즉시 모델 사용이 가능합니다
                       </p>
                     </div>
                   </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
