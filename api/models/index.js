@@ -10,7 +10,21 @@ export default async function handler(req, res) {
   }
 
   try {
-    const backendUrl = 'https://kau-capstone.duckdns.org/api/models';
+    // URL에서 ID 추출
+    const url = new URL(req.url, 'http://localhost');
+    const pathSegments = url.pathname.split('/').filter(Boolean);
+    
+    let backendUrl;
+    if (pathSegments.length === 2) {
+      // /api/models
+      backendUrl = 'https://kau-capstone.duckdns.org/api/models';
+    } else if (pathSegments.length === 3) {
+      // /api/models/{id}
+      const id = pathSegments[2];
+      backendUrl = `https://kau-capstone.duckdns.org/api/models/${id}`;
+    } else {
+      return res.status(404).json({ error: 'Not found' });
+    }
     
     const response = await fetch(backendUrl, {
       method: 'GET',
