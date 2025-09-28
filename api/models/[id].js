@@ -15,15 +15,18 @@ export default async function handler(req, res) {
     const backendUrl = `https://kau-capstone.duckdns.org/api/models/${id}`;
     
     const response = await fetch(backendUrl, {
-      method: req.method,
+      method: 'GET',
       headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
+        'Accept': 'application/json',
+        'User-Agent': 'Vercel-Proxy/1.0'
       }
     });
 
     if (!response.ok) {
-      throw new Error(`Backend API error: ${response.status} ${response.statusText}`);
+      return res.status(response.status).json({ 
+        error: `Backend API returned ${response.status}`,
+        message: response.statusText 
+      });
     }
 
     const data = await response.json();
@@ -32,9 +35,8 @@ export default async function handler(req, res) {
   } catch (error) {
     console.error('Proxy error:', error);
     res.status(500).json({ 
-      error: 'Proxy server error',
-      message: error.message,
-      modelId: id
+      error: 'Internal server error',
+      message: error.message
     });
   }
 }
