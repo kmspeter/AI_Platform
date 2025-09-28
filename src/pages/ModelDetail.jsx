@@ -20,22 +20,37 @@ import {
 
 // API 서비스
 const modelDetailService = {
+  baseURL: 'https://kau-capstone.duckdns.org',
+  
   async fetchModel(id, forceRefresh = false) {
     try {
-      const data = await cachedFetch(`/api/models/${id}`, {
+      const apiUrl = import.meta.env.NODE_ENV === 'development' 
+        ? `/api/models/${id}`
+        : `${this.baseURL}/api/models/${id}`;
+      
+      console.log('Environment:', import.meta.env.NODE_ENV);
+      console.log('Base URL:', this.baseURL);
+      console.log('Model detail API 요청 URL:', apiUrl);
+      
+      const data = await cachedFetch(apiUrl, {
         method: 'GET',
         headers: {
           'accept': '*/*',
           'Content-Type': 'application/json',
         },
         forceRefresh
-      }, 10 * 60 * 1000); // 10분 캐시 (상세 정보는 더 오래 캐시)
+      }, 10 * 60 * 1000);
       
       console.log('Model detail API response:', data);
       
       return this.transformModel(data);
     } catch (error) {
       console.error('Failed to fetch model detail:', error);
+      
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        throw new Error(`네트워크 연결을 확인해주세요. API 서버(${this.baseURL})에 접근할 수 없습니다.`);
+      }
+      
       throw error;
     }
   },
