@@ -8,16 +8,26 @@ import { ComparisonOverlay } from '../components/market/ComparisonOverlay';
 
 // API 서비스 함수
 const apiService = {
-  baseURL: '',
+  // 환경변수 기반 baseURL 설정
+  baseURL: 'https://kau-capstone.duckdns.org',
   
   async fetchModels(forceRefresh = false) {
     try {
-      const apiUrl = `/api/models`;
+      // 환경에 따른 API URL 생성
+      const apiUrl = import.meta.env.NODE_ENV === 'development' 
+        ? `/api/models`  // 개발환경: 프록시 사용
+        : `${this.baseURL}/api/models`;  // 프로덕션: 직접 호출
+      
+      console.log('Environment:', import.meta.env.NODE_ENV);
+      console.log('Base URL:', this.baseURL);
       console.log('API 요청 URL:', apiUrl);
             
       const data = await cachedFetch(apiUrl, {
         method: 'GET',
-        headers: { 'Accept': 'application/json' },
+        headers: { 
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        },
         forceRefresh
       }, 5 * 60 * 1000); // 5분 캐시
       
@@ -33,7 +43,7 @@ const apiService = {
       
       // 네트워크 에러 처리
       if (error instanceof TypeError && error.message.includes('fetch')) {
-        throw new Error('네트워크 연결을 확인해주세요. API 서버에 접근할 수 없습니다.');
+        throw new Error(`네트워크 연결을 확인해주세요. API 서버(${this.baseURL})에 접근할 수 없습니다.`);
       }
       
       throw error;
@@ -257,6 +267,9 @@ export const Market = () => {
         <div className="text-center">
           <Loader2 className="h-8 w-8 animate-spin text-blue-600 mx-auto mb-4" />
           <p className="text-gray-600">모델 데이터를 불러오는 중...</p>
+          <p className="text-xs text-gray-400 mt-1">
+            환경: {import.meta.env.NODE_ENV} | 서버: {apiService.baseURL}
+          </p>
         </div>
       </div>
     );
@@ -270,6 +283,10 @@ export const Market = () => {
           <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
           <h3 className="text-lg font-semibold text-gray-900 mb-2">데이터를 불러올 수 없습니다</h3>
           <p className="text-gray-600 mb-4">{error}</p>
+          <div className="text-xs text-gray-400 mb-4">
+            <div>환경: {import.meta.env.NODE_ENV}</div>
+            <div>API 서버: {apiService.baseURL}</div>
+          </div>
           <button
             onClick={handleRetry}
             className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
