@@ -3,7 +3,7 @@ import { Bot, Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
-const SERVER_URL = 'https://kau-capstone.duckdns.org/';
+const SERVER_URL = 'https://kau-capstone.duckdns.org';
 
 export const LoginPage = () => {
   const { login } = useAuth();
@@ -37,89 +37,71 @@ export const LoginPage = () => {
     }
   };
 
-  // Google OAuth 로그인 - 팝업 방식
+  // Google OAuth 로그인 - 팝업 없이 현재 창에서 진행
   const handleGoogleLogin = () => {
     setLoading(true);
     setError('');
     
-    const loginUrl = `${SERVER_URL}/oauth2/authorization/google`;
+    // 현재 URL을 저장 (로그인 후 돌아올 위치)
+    sessionStorage.setItem('loginReturnUrl', window.location.pathname);
     
-    // 팝업 창 설정
-    const width = 500;
-    const height = 600;
-    const left = window.screenX + (window.outerWidth - width) / 2;
-    const top = window.screenY + (window.outerHeight - height) / 2;
-    
-    const popup = window.open(
-      loginUrl,
-      'Google Login',
-      `width=${width},height=${height},left=${left},top=${top}`
-    );
+    // 현재 창에서 OAuth 시작
+    window.location.href = `${SERVER_URL}/oauth2/authorization/google`;
+  };
 
-    // 팝업 모니터링 - 주기적으로 팝업의 URL 확인
-    const checkPopup = setInterval(async () => {
-      try {
-        if (!popup || popup.closed) {
-          clearInterval(checkPopup);
-          setLoading(false);
-          return;
-        }
-
-        // 팝업의 URL 확인 시도
+  // 페이지 로드 시 OAuth 완료 여부 확인
+  useEffect(() => {
+    const checkOAuthComplete = async () => {
+      // URL에서 돌아온 경로 확인
+      const returnUrl = sessionStorage.getItem('loginReturnUrl');
+      
+      if (returnUrl) {
+        sessionStorage.removeItem('loginReturnUrl');
+        
         try {
-          const popupUrl = popup.location.href;
+          setLoading(true);
           
-          // 백엔드 서버의 응답 페이지인지 확인
-          if (popupUrl && popupUrl.includes(SERVER_URL)) {
-            // 팝업에서 HTML 내용 가져오기
-            const popupDoc = popup.document;
-            const bodyText = popupDoc.body.innerText || popupDoc.body.textContent;
-            
-            // JSON 데이터 파싱 시도
-            try {
-              const jsonMatch = bodyText.match(/\{[\s\S]*\}/);
-              if (jsonMatch) {
-                const authData = JSON.parse(jsonMatch[0]);
-                
-                if (authData.accessToken && authData.user) {
-                  // 로그인 처리
-                  await login(authData.user, authData.accessToken);
-                  
-                  // 팝업 닫기
-                  popup.close();
-                  clearInterval(checkPopup);
-                  setLoading(false);
-                  
-                  // 홈으로 이동
-                  navigate('/');
-                } else {
-                  throw new Error('Invalid auth data');
-                }
-              }
-            } catch (parseError) {
-              console.error('JSON parse error:', parseError);
+          // 백엔드에서 쿠키로 설정한 accessToken을 사용하여 사용자 정보 가져오기
+          const response = await fetch(`${SERVER_URL}/api/auth/me`, {
+            method: 'GET',
+            credentials: 'include', // 쿠키 포함
+            headers: {
+              'Accept': 'application/json',
             }
-          }
-        } catch (e) {
-          // CORS 에러는 무시 (다른 도메인에 있을 때)
-          if (e.name !== 'SecurityError') {
-            console.error('Popup check error:', e);
-          }
-        }
-      } catch (error) {
-        console.error('Check popup error:', error);
-      }
-    }, 500);
+          });
 
-    // 타임아웃 설정 (30초)
-    setTimeout(() => {
-      if (popup && !popup.closed) {
-        popup.close();
+          if (response.ok) {
+            const data = await response.json();
+            
+            // 쿠키에서 accessToken 읽기 (선택사항)
+            const accessToken = getCookie('accessToken');
+            
+            // 로그인 처리
+            await login(data.user, accessToken || data.accessToken);
+            
+            // 홈으로 이동
+            navigate('/home');
+          } else {
+            throw new Error('인증 정보를 가져오는데 실패했습니다.');
+          }
+        } catch (err) {
+          console.error('OAuth completion error:', err);
+          setError('로그인 처리 중 오류가 발생했습니다.');
+        } finally {
+          setLoading(false);
+        }
       }
-      clearInterval(checkPopup);
-      setLoading(false);
-      setError('로그인 시간이 초과되었습니다.');
-    }, 30000);
+    };
+
+    checkOAuthComplete();
+  }, [login, navigate]);
+
+  // 쿠키에서 특정 값 읽기 헬퍼 함수
+  const getCookie = (name) => {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop().split(';').shift();
+    return null;
   };
 
   return (
@@ -147,8 +129,13 @@ export const LoginPage = () => {
 
           {loading && (
             <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-              <p className="text-blue-700 text-sm">Google 로그인 처리 중...</p>
-              <p className="text-blue-600 text-xs mt-1">팝업에서 로그인을 완료해주세요</p>
+              <div className="flex items-center space-x-3">
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-700"></div>
+                <div>
+                  <p className="text-blue-700 text-sm font-medium">Google 로그인 처리 중...</p>
+                  <p className="text-blue-600 text-xs mt-1">잠시만 기다려주세요</p>
+                </div>
+              </div>
             </div>
           )}
 
@@ -252,7 +239,7 @@ export const LoginPage = () => {
           <div className="mt-4 p-3 bg-gray-100 rounded-lg text-xs text-gray-600">
             <p><strong>백엔드 서버:</strong> {SERVER_URL}</p>
             <p className="mt-2 text-blue-600">
-              ℹ️ 팝업에서 JSON 응답을 자동으로 감지합니다.
+              ℹ️ 현재 창에서 OAuth 진행 후 자동으로 로그인됩니다.
             </p>
           </div>
         )}
