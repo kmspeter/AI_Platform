@@ -644,7 +644,7 @@ export const Personal = () => {
             <div className="relative bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
               
               {/* 헤더 */}
-              <div className="flex items-center justify-between p-6 border-b">
+              <div className="flex items-center justify-between p-6 border-b border-gray-400">
                 <h3 className="text-lg font-semibold text-gray-900">
                   {formStep === 1 ? '업로드 타입 선택' : 
                    uploadType === 'model' ? '모델 등록' : '데이터셋 등록'}
@@ -864,7 +864,7 @@ export const Personal = () => {
                     </div>
 
                     {/* 버튼 */}
-                    <div className="flex space-x-3 pt-6 border-t">
+                    <div className="flex space-x-3 pt-6 border-t border-gray-400">
                       <button
                         onClick={() => setFormStep(1)}
                         className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
@@ -934,7 +934,7 @@ export const Personal = () => {
                       </div>
                     </div>
 
-                    <div className="flex space-x-3 pt-6 border-t">
+                    <div className="flex space-x-3 pt-6 border-t border-gray-400">
                       <button
                         onClick={() => setFormStep(1)}
                         className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
