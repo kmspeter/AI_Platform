@@ -61,27 +61,35 @@ export const LoginPage = () => {
 
   // 페이지 로드 시 OAuth 완료 확인
   useEffect(() => {
+    // 디버깅: 현재 도메인의 모든 쿠키 출력
+    console.log('=== 쿠키 디버깅 ===');
+    console.log('현재 도메인:', window.location.hostname);
+    console.log('모든 쿠키:', document.cookie);
+    console.log('accessToken 쿠키:', getCookie('accessToken'));
+    
     const checkOAuthComplete = async () => {
       const oauthInProgress = sessionStorage.getItem('oauthInProgress');
       const oauthStartTime = sessionStorage.getItem('oauthStartTime');
       
-      // OAuth가 진행 중이었고, 시작한지 1분 이내인 경우
+      console.log('OAuth 진행 중?', oauthInProgress);
+      console.log('OAuth 시작 시간:', oauthStartTime);
+      
       if (oauthInProgress === 'true' && oauthStartTime) {
         const elapsed = Date.now() - parseInt(oauthStartTime);
+        console.log('경과 시간:', elapsed);
         
-        if (elapsed < 60000) { // 1분 이내
-          // 플래그 제거
+        if (elapsed < 60000) {
           sessionStorage.removeItem('oauthInProgress');
           sessionStorage.removeItem('oauthStartTime');
           
-          // accessToken 쿠키 확인
           const accessToken = getCookie('accessToken');
+          console.log('추출한 토큰:', accessToken);
           
           if (accessToken) {
+            console.log('토큰 있음 - API 호출 시도');
             try {
               setLoading(true);
               
-              // 사용자 정보 가져오기
               const response = await fetch(`${SERVER_URL}/api/users/me`, {
                 method: 'GET',
                 credentials: 'include',
@@ -91,15 +99,18 @@ export const LoginPage = () => {
                 }
               });
 
+              console.log('API 응답 상태:', response.status);
+              console.log('API 응답 헤더:', [...response.headers.entries()]);
+
               if (response.ok) {
                 const userData = await response.json();
+                console.log('사용자 데이터:', userData);
                 
-                // 로그인 처리
                 await login(userData, accessToken);
-                
-                // 홈으로 이동
                 navigate('/home');
               } else {
+                const errorText = await response.text();
+                console.error('API 에러 응답:', errorText);
                 throw new Error('사용자 정보를 가져오는데 실패했습니다.');
               }
             } catch (err) {
@@ -108,13 +119,10 @@ export const LoginPage = () => {
               setLoading(false);
             }
           } else {
+            console.log('토큰 없음 - 로그인 실패');
             setError('로그인에 실패했습니다.');
             setLoading(false);
           }
-        } else {
-          // 시간 초과
-          sessionStorage.removeItem('oauthInProgress');
-          sessionStorage.removeItem('oauthStartTime');
         }
       }
     };
