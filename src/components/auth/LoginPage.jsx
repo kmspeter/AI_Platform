@@ -1,14 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Bot, Mail, Lock, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
 
 const SERVER_URL = 'https://kau-capstone.duckdns.org';
-const FRONTEND_URL = 'https://ai-modelhub-platform.vercel.app'; // 또는 window.location.origin
 
 export const LoginPage = () => {
   const { login } = useAuth();
-  const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({ email: '', password: '' });
   const [loading, setLoading] = useState(false);
@@ -20,7 +17,6 @@ export const LoginPage = () => {
     if (error) setError('');
   };
 
-  // 로컬 이메일 로그인 (데모용)
   const handleEmailLogin = async e => {
     e.preventDefault();
     setLoading(true);
@@ -38,102 +34,14 @@ export const LoginPage = () => {
     }
   };
 
-  // Google OAuth 로그인
   const handleGoogleLogin = () => {
-    setLoading(true);
-    setError('');
-    
-    // OAuth 시작 플래그 설정
-    sessionStorage.setItem('oauthInProgress', 'true');
-    sessionStorage.setItem('oauthStartTime', Date.now().toString());
-    
-    // 백엔드 OAuth URL로 이동
+    // 간단하게 OAuth URL로 이동만
     window.location.href = `${SERVER_URL}/oauth2/authorization/google`;
   };
-
-  // 쿠키에서 특정 값 읽기
-  const getCookie = (name) => {
-    const value = `; ${document.cookie}`;
-    const parts = value.split(`; ${name}=`);
-    if (parts.length === 2) return parts.pop().split(';').shift();
-    return null;
-  };
-
-  // 페이지 로드 시 OAuth 완료 확인
-  useEffect(() => {
-    // 디버깅: 현재 도메인의 모든 쿠키 출력
-    console.log('=== 쿠키 디버깅 ===');
-    console.log('현재 도메인:', window.location.hostname);
-    console.log('모든 쿠키:', document.cookie);
-    console.log('accessToken 쿠키:', getCookie('accessToken'));
-    
-    const checkOAuthComplete = async () => {
-      const oauthInProgress = sessionStorage.getItem('oauthInProgress');
-      const oauthStartTime = sessionStorage.getItem('oauthStartTime');
-      
-      console.log('OAuth 진행 중?', oauthInProgress);
-      console.log('OAuth 시작 시간:', oauthStartTime);
-      
-      if (oauthInProgress === 'true' && oauthStartTime) {
-        const elapsed = Date.now() - parseInt(oauthStartTime);
-        console.log('경과 시간:', elapsed);
-        
-        if (elapsed < 60000) {
-          sessionStorage.removeItem('oauthInProgress');
-          sessionStorage.removeItem('oauthStartTime');
-          
-          const accessToken = getCookie('accessToken');
-          console.log('추출한 토큰:', accessToken);
-          
-          if (accessToken) {
-            console.log('토큰 있음 - API 호출 시도');
-            try {
-              setLoading(true);
-              
-              const response = await fetch(`${SERVER_URL}/api/users/me`, {
-                method: 'GET',
-                credentials: 'include',
-                headers: {
-                  'Accept': 'application/json',
-                  'Authorization': `Bearer ${accessToken}`
-                }
-              });
-
-              console.log('API 응답 상태:', response.status);
-              console.log('API 응답 헤더:', [...response.headers.entries()]);
-
-              if (response.ok) {
-                const userData = await response.json();
-                console.log('사용자 데이터:', userData);
-                
-                await login(userData, accessToken);
-                navigate('/home');
-              } else {
-                const errorText = await response.text();
-                console.error('API 에러 응답:', errorText);
-                throw new Error('사용자 정보를 가져오는데 실패했습니다.');
-              }
-            } catch (err) {
-              console.error('OAuth completion error:', err);
-              setError('로그인 처리 중 오류가 발생했습니다.');
-              setLoading(false);
-            }
-          } else {
-            console.log('토큰 없음 - 로그인 실패');
-            setError('로그인에 실패했습니다.');
-            setLoading(false);
-          }
-        }
-      }
-    };
-
-    checkOAuthComplete();
-  }, [login, navigate]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center p-4">
       <div className="max-w-md w-full">
-        {/* 헤더 */}
         <div className="text-center mb-8">
           <div className="flex items-center justify-center space-x-3 mb-6">
             <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center">
@@ -145,7 +53,6 @@ export const LoginPage = () => {
           <p className="text-gray-600">AI 모델 마켓플레이스에 오신 것을 환영합니다</p>
         </div>
 
-        {/* 로그인 카드 */}
         <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-8">
           {error && (
             <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
@@ -153,19 +60,6 @@ export const LoginPage = () => {
             </div>
           )}
 
-          {loading && (
-            <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-              <div className="flex items-center space-x-3">
-                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-700"></div>
-                <div>
-                  <p className="text-blue-700 text-sm font-medium">Google 로그인 처리 중...</p>
-                  <p className="text-blue-600 text-xs mt-1">잠시만 기다려주세요</p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Google 로그인 */}
           <div className="mb-6">
             <button
               onClick={handleGoogleLogin}
@@ -178,13 +72,10 @@ export const LoginPage = () => {
                 <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
                 <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
               </svg>
-              <span className="text-gray-700 font-medium">
-                {loading ? '처리 중...' : 'Google로 계속하기'}
-              </span>
+              <span className="text-gray-700 font-medium">Google로 계속하기</span>
             </button>
           </div>
 
-          {/* 구분선 */}
           <div className="relative mb-6">
             <div className="absolute inset-0 flex items-center">
               <div className="w-full border-t border-gray-300" />
@@ -194,7 +85,6 @@ export const LoginPage = () => {
             </div>
           </div>
 
-          {/* 이메일 로그인 (데모) */}
           <form onSubmit={handleEmailLogin} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">이메일</label>

@@ -17,6 +17,7 @@ import { Checkout } from './pages/Checkout';
 import { PurchaseComplete } from './pages/PurchaseComplete';
 import { Profile } from './pages/Profile';
 import { Settings } from './pages/Settings';
+import { OAuthCallback } from './pages/OAuthCallback'; // 추가
 
 const AppContent = () => {
   const { isAuthenticated, loading, needsWalletConnection, skipWalletConnection, updateUser } = useAuth();
@@ -30,6 +31,11 @@ const AppContent = () => {
         </div>
       </div>
     );
+  }
+
+  // OAuth 콜백은 인증 여부와 관계없이 처리
+  if (window.location.pathname === '/oauth/callback') {
+    return <OAuthCallback />;
   }
 
   if (!isAuthenticated) {
@@ -46,6 +52,7 @@ const AppContent = () => {
       />
     );
   }
+
   return (
     <Layout>
       <Routes>
@@ -69,6 +76,7 @@ const AppContent = () => {
     </Layout>
   );
 };
+
 function App() {
   return (
     <AuthProvider>
