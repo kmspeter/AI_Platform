@@ -18,6 +18,7 @@ import { PurchaseComplete } from './pages/PurchaseComplete';
 import { Profile } from './pages/Profile';
 import { Settings } from './pages/Settings';
 import { OAuthCallback } from './pages/OAuthCallback'; // 추가
+import { ModelRegister } from './pages/ModelRegister';
 
 const AppContent = () => {
   const { isAuthenticated, loading, needsWalletConnection, skipWalletConnection, updateUser } = useAuth();
@@ -59,6 +60,7 @@ const AppContent = () => {
         <Route path="/" element={<Market />} />
         <Route path="/models" element={<Market />} />
         <Route path="/model/:id" element={<ModelDetail />} />
+        <Route path="/models/register" element={<ModelRegister />} />
         <Route path="/datasets" element={<Datasets />} />
         <Route path="/playground" element={<Playground />} />
         <Route path="/creator" element={<Creator />} />
