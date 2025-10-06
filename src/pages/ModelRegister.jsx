@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Upload, RefreshCcw, Loader2, Plus, AlertTriangle, X, Pause } from 'lucide-react';
+import { ArrowLeft, Upload, RefreshCcw, Loader2, Plus, AlertTriangle, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { resolveApiUrl, resolveIpfsUrl } from '../config/api';
 
@@ -67,13 +67,62 @@ const mapModelOptionLabel = (model) => {
   return `${name}${version}${modality}`;
 };
 
+// 모달리티별 standard 플랜 한도 필드명
+const getStandardLimitKey = (modality) => {
+  switch (modality) {
+    case 'LLM':
+      return 'monthlyTokenLimit';
+    case 'image-generation':
+      return 'monthlyGenerationLimit';
+    case 'multimodal':
+      return 'monthlyRequestLimit';
+    case 'audio':
+      return 'monthlyMinuteLimit';
+    default:
+      return 'monthlyRequestLimit';
+  }
+};
+// 한도 라벨
+const getStandardLimitLabel = (modality) => {
+  switch (modality) {
+    case 'LLM':
+      return '월 토큰 한도 (monthlyTokenLimit)';
+    case 'image-generation':
+      return '월 생성 수 한도 (monthlyGenerationLimit)';
+    case 'multimodal':
+      return '월 요청 수 한도 (monthlyRequestLimit)';
+    case 'audio':
+      return '월 이용 분 한도 (monthlyMinuteLimit)';
+    default:
+      return '월 한도';
+  }
+};
+// 한도 placeholder
+const getStandardLimitPlaceholder = (modality) => {
+  switch (modality) {
+    case 'LLM':
+      return '예: 5,000,000';
+    case 'image-generation':
+      return '예: 1,000 (장)';
+    case 'multimodal':
+      return '예: 10,000 (요청)';
+    case 'audio':
+      return '예: 3,000 (분)';
+    default:
+      return '값을 입력하세요';
+  }
+};
+
 export const ModelRegister = () => {
   const navigate = useNavigate();
   const API_BASE = resolveApiUrl('/api');
   const modelFileInputRef = useRef(null);
 
   const [modelFile, setModelFile] = useState(null);
-  const [modelStatus, setModelStatus] = useState(''); // 유지: 파일명/에러 표시에만 사용
+  const [modelStatus, setModelStatus] = useState('');
+
+  // 썸네일 업로드 상태
+  const [thumbUploadStatus, setThumbUploadStatus] = useState('');
 
   const [modelForm, setModelForm] = useState({
     name: '',
@@ -83,6 +132,8 @@ export const ModelRegister = () => {
     license: ['research'],
     releaseDate: '',
     overview: '',
+    releaseNotes: '',          // 🔹 추가: 릴리스 노트
+    thumbnail: '',             // 🔹 추가: 썸네일 URL
     pricing: {
       research: {
         price: 0,
@@ -95,6 +146,7 @@ export const ModelRegister = () => {
         description: '',
         billingType: 'monthly_subscription',
         rights: [],
+        // 모달리티별 동적 키로 저장할 예정
       },
       enterprise: {
         price: 100,
@@ -129,7 +181,7 @@ export const ModelRegister = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitProgress, setSubmitProgress] = useState(0); // 0~100
   const [progressLog, setProgressLog] = useState([]);
-  const abortRef = useRef(null); // XMLHttpRequest instance 보관
+  const abortRef = useRef(null);
   const appendLog = (msg) => setProgressLog((prev) => [...prev, `[${new Date().toLocaleTimeString()}] ${msg}`]);
 
   const handlePickModelFile = () => modelFileInputRef.current?.click();
@@ -140,7 +192,7 @@ export const ModelRegister = () => {
     setModelStatus(file ? '' : '');
   };
 
-  // 공통 업로드 유틸: 샘플 파일 업로드는 기존 API 유지
+  // 공통 업로드 유틸: 샘플/썸네일 업로드에 사용
   const uploadToServer = async (file, setStatus) => {
     if (!file) return null;
     if (file.size > 100 * 1024 * 1024) {
@@ -199,6 +251,15 @@ export const ModelRegister = () => {
     }));
   };
 
+  // 썸네일 업로드 핸들러
+  const handleThumbnailFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    const url = await uploadToServer(file, setThumbUploadStatus);
+    if (url) {
+      setModelForm((prev) => ({ ...prev, thumbnail: url }));
+    }
+  };
+
   const updateTechnicalSpecs = (field, value) => {
     setModelForm((prev) => ({
       ...prev,
@@ -235,17 +296,37 @@ export const ModelRegister = () => {
   };
 
   const handleModalityChange = (nextModality) => {
-    setModelForm((prev) => ({
-      ...prev,
-      modality: nextModality,
-      technicalSpecs: { ...TECHNICAL_SPEC_TEMPLATES[nextModality] },
-      sampleData: SAMPLE_FIELDS_BY_MODALITY[nextModality]
-        ? SAMPLE_FIELDS_BY_MODALITY[nextModality].reduce((acc, key) => {
-            acc[key] = prev.sampleData[key] || '';
-            return acc;
-          }, {})
-        : {},
-    }));
+    setModelForm((prev) => {
+      // 표준 플랜 한도 키 재정렬을 위해 기존 값을 읽어 새 키로 이관
+      const prevKey = getStandardLimitKey(prev.modality);
+      const nextKey = getStandardLimitKey(nextModality);
+      const prevVal = prev.pricing?.standard?.[prevKey];
+
+      const standardNext = { ...prev.pricing.standard };
+      if (prevVal !== undefined && standardNext[nextKey] === undefined) {
+        standardNext[nextKey] = prevVal; // 이전 값 이관
+      }
+      // 이전 키가 있고, 모달리티 바뀔 때 혼선을 피하려면 필요 시 제거 가능(여기선 제거)
+      if (prevKey !== nextKey) {
+        delete standardNext[prevKey];
+      }
+
+      return {
+        ...prev,
+        modality: nextModality,
+        technicalSpecs: { ...TECHNICAL_SPEC_TEMPLATES[nextModality] },
+        sampleData: SAMPLE_FIELDS_BY_MODALITY[nextModality]
+          ? SAMPLE_FIELDS_BY_MODALITY[nextModality].reduce((acc, key) => {
+              acc[key] = prev.sampleData[key] || '';
+              return acc;
+            }, {})
+          : {},
+        pricing: {
+          ...prev.pricing,
+          standard: standardNext,
+        },
+      };
+    });
     setMetricsValues(makeEmptyMetrics(nextModality));
   };
 
@@ -298,6 +379,16 @@ export const ModelRegister = () => {
       };
       if (p.description) pricing[plan].description = p.description;
       if (p.rights?.length) pricing[plan].rights = p.rights;
+
+      // 🔹 standard 플랜 모달리티별 월 한도 필드 반영
+      if (plan === 'standard') {
+        const key = getStandardLimitKey(modelForm.modality);
+        const rawVal = p[key];
+        if (rawVal !== undefined && rawVal !== null && rawVal !== '') {
+          const num = Number(rawVal);
+          pricing[plan][key] = Number.isNaN(num) ? rawVal : num;
+        }
+      }
     });
 
     const metrics = {};
@@ -337,6 +428,8 @@ export const ModelRegister = () => {
 
     if (modelForm.releaseDate) payload.releaseDate = modelForm.releaseDate;
     if (modelForm.overview.trim()) payload.overview = modelForm.overview.trim();
+    if (modelForm.releaseNotes && modelForm.releaseNotes.trim()) payload.releaseNotes = modelForm.releaseNotes.trim(); // 🔹 릴리스 노트 포함
+    if (modelForm.thumbnail && modelForm.thumbnail.trim()) payload.thumbnail = modelForm.thumbnail.trim();           // 🔹 썸네일 URL 포함
     if (Object.keys(metrics).length) payload.metrics = metrics;
     if (Object.keys(technicalSpecs).length) payload.technicalSpecs = technicalSpecs;
     if (Object.keys(sample).length) payload.sample = sample;
@@ -397,8 +490,6 @@ export const ModelRegister = () => {
     formData.append('model', modelFile, modelFile.name);
     formData.append('metadata', new Blob([JSON.stringify(modelJson)], { type: 'application/json' }));
 
-    // 필요 시 샘플/부가 파일도 함께 보낼 수 있도록 여지 남김 (현재는 URL만 전송)
-
     setIsSubmitting(true);
     appendLog('IPFS 노드 서버로 업로드를 시작합니다…');
 
@@ -442,7 +533,6 @@ export const ModelRegister = () => {
         if (xhr.status >= 200 && xhr.status < 300) {
           setSubmitProgress(100);
           const res = xhr.response || {};
-          // 예상 응답 예시: { success: true, data: { ipfsHash, relayId, backendId } }
           if (res.success) {
             appendLog('IPFS 노드 서버 업로드 성공. 백엔드 릴레이 완료.');
             setSubmitStatus('모델이 성공적으로 등록되었습니다.');
@@ -693,7 +783,6 @@ export const ModelRegister = () => {
             <button onClick={handlePickModelFile} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">파일 선택</button>
             <input ref={modelFileInputRef} type="file" className="hidden" onChange={handleModelFileChange} />
             {modelFile && <p className="mt-3 text-sm text-gray-700">{modelFile.name}</p>}
-            {/* 👉 기존 "IPFS에 업로드" 버튼 제거됨 */}
             {modelStatus && (
               <pre className="mt-3 text-xs whitespace-pre-wrap text-gray-700 bg-gray-50 p-3 rounded">{modelStatus}</pre>
             )}
@@ -755,6 +844,7 @@ export const ModelRegister = () => {
                 ))}
               </select>
             </div>
+
             {/* 부모 모델 - 필수 */}
             <div>
               <div className="flex items-center justify-between">
@@ -776,6 +866,7 @@ export const ModelRegister = () => {
               </select>
               {modelsError && <p className="mt-2 text-sm text-red-500">{modelsError}</p>}
             </div>
+
             {/* 라이선스 */}
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-2">라이선스 *</label>
@@ -796,6 +887,7 @@ export const ModelRegister = () => {
                 <p className="mt-2 text-sm text-red-500">오픈소스는 단독 선택만 가능합니다.</p>
               )}
             </div>
+
             {/* 모델 설명 */}
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-2">모델 설명 *</label>
@@ -806,6 +898,44 @@ export const ModelRegister = () => {
                 className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                 placeholder="모델에 대한 상세 설명을 입력하세요"
               />
+            </div>
+
+            {/* 🔹 릴리스 노트 */}
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-2">릴리스 노트 (선택)</label>
+              <textarea
+                rows={4}
+                value={modelForm.releaseNotes}
+                onChange={(e) => updateModelForm('releaseNotes', e.target.value)}
+                className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                placeholder="예: 버그 수정, 성능 향상, API 변경사항 등"
+              />
+            </div>
+
+            {/* 🔹 썸네일 업로드 */}
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-2">썸네일 / 미리보기 이미지</label>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleThumbnailFileChange}
+                className="block w-full text-sm text-gray-700 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+              />
+              {thumbUploadStatus && (
+                <pre className="text-xs whitespace-pre-wrap text-gray-700 bg-gray-50 p-2 rounded mt-2">
+                  {thumbUploadStatus}
+                </pre>
+              )}
+              {modelForm.thumbnail && (
+                <div className="mt-3">
+                  <img
+                    src={modelForm.thumbnail}
+                    alt="thumbnail preview"
+                    className="h-28 w-auto rounded border border-gray-200"
+                  />
+                  <div className="text-xs text-gray-600 mt-1 break-all">{modelForm.thumbnail}</div>
+                </div>
+              )}
             </div>
           </div>
         </section>
@@ -850,6 +980,38 @@ export const ModelRegister = () => {
                     <input type="text" readOnly className="w-full rounded-lg border-gray-200 bg-gray-50 text-gray-600" value={
                       plan === 'research' ? '무료' : plan === 'standard' ? '월간 구독' : '일회성 구매'} />
                   </div>
+
+                  {/* 🔹 표준 플랜: 모달리티별 월 한도 입력 */}
+                  {plan === 'standard' && (
+                    <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          {getStandardLimitLabel(modelForm.modality)}
+                        </label>
+                        <input
+                          type="number"
+                          value={modelForm.pricing.standard[getStandardLimitKey(modelForm.modality)] || ''}
+                          onChange={(e) =>
+                            setModelForm((prev) => ({
+                              ...prev,
+                              pricing: {
+                                ...prev.pricing,
+                                standard: {
+                                  ...prev.pricing.standard,
+                                  [getStandardLimitKey(modelForm.modality)]: e.target.value,
+                                },
+                              },
+                            }))
+                          }
+                          className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                          placeholder={getStandardLimitPlaceholder(modelForm.modality)}
+                          min="0"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">현재 모달리티({modelForm.modality})에 따라 필드명이 달라집니다.</p>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="md:col-span-2">
                     <label className="block text-sm font-medium text-gray-700 mb-2">플랜 설명</label>
                     <input
@@ -914,7 +1076,6 @@ export const ModelRegister = () => {
             </div>
           </div>
 
-          {/* 진행률 바 + 로그 */}
           {(isSubmitting || submitProgress > 0 || progressLog.length > 0) && (
             <div className="space-y-3">
               <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
