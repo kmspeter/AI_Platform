@@ -1,13 +1,5 @@
 {
   "rewrites": [
-    { 
-      "source": "/api/models/:path*", 
-      "destination": "/api/models/:path*"
-    },
-    { 
-      "source": "/api/storage/:path*", 
-      "destination": "http://13.125.63.0:3001/:path*" 
-    },
     {
       "source": "/(.*)",
       "destination": "/index.html"

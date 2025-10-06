@@ -127,13 +127,21 @@ const modelDetailService = {
       }
     }
 
+    const planOrder = { '연구용': 1, '표준': 2, '엔터프라이즈': 3 };
+
     const plansToUse = pricingPlansRaw.length > 0 ? pricingPlansRaw : [defaultPlan];
-    const pricingPlans = plansToUse.map(plan => ({
-      ...plan,
-      rights: plan.rights && plan.rights.length > 0
-        ? plan.rights
-        : (licenseInfo.labels.length > 0 ? licenseInfo.labels : ['권한 정보 미제공']),
-    }));
+    const pricingPlans = plansToUse
+      .map(plan => ({
+        ...plan,
+        rights: plan.rights && plan.rights.length > 0
+          ? plan.rights
+          : (licenseInfo.labels.length > 0 ? licenseInfo.labels : ['권한 정보 미제공']),
+      }))
+      .sort((a, b) => {
+        const orderA = planOrder[a.name] || 999;
+        const orderB = planOrder[b.name] || 999;
+        return orderA - orderB;
+      });
 
     const releaseNotes = Array.isArray(targetModel.releaseNotes)
       ? targetModel.releaseNotes.map((note, index) => {
