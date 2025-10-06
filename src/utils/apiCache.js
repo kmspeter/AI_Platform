@@ -1,3 +1,5 @@
+import { resolveApiUrl } from '../config/api';
+
 // API 캐싱 유틸리티
 class ApiCache {
   constructor() {
@@ -81,7 +83,8 @@ export const apiCache = new ApiCache();
 // 캐시된 fetch 함수
 export const cachedFetch = async (url, options = {}, ttl) => {
   const { forceRefresh = false, ...fetchOptions } = options;
-  const cacheKey = apiCache.generateKey(url, fetchOptions);
+  const finalUrl = resolveApiUrl(url);
+  const cacheKey = apiCache.generateKey(finalUrl, fetchOptions);
 
   // 강제 새로고침이 아닌 경우 캐시 확인
   if (!forceRefresh) {
@@ -92,8 +95,8 @@ export const cachedFetch = async (url, options = {}, ttl) => {
   }
 
   try {
-    console.log(`Fetching from API: ${url}`);
-    const response = await fetch(url, fetchOptions);
+    console.log(`Fetching from API: ${finalUrl}`);
+    const response = await fetch(finalUrl, fetchOptions);
     
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
