@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { User, Mail, Calendar, MapPin, Link as LinkIcon, CreditCard as Edit3, Save, X, Camera, Shield, Award, TrendingUp, Users } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '@/contexts';
 
 export const Profile = () => {
   const { user, updateUser } = useAuth();

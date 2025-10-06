@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Header } from './Header';
 import { Sidebar } from './Sidebar';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth } from '@/contexts';
 
 export const Layout = ({ children }) => {
   const { user, updateUser } = useAuth();

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Wallet, CheckCircle, AlertCircle, ArrowRight, RefreshCw } from 'lucide-react';
-import { useAuth } from '../../contexts/AuthContext';
-import { phantomWallet } from '../../utils/phantomWallet';
+import { useAuth } from '@/contexts';
+import { phantomWallet } from '@/utils/phantomWallet';
 
 export const WalletConnectPage = ({ onComplete, onSkip }) => {
   const { user, updateUser } = useAuth();
@@ -14,8 +14,8 @@ export const WalletConnectPage = ({ onComplete, onSkip }) => {
     // 팬텀 지갑 설치 여부 확인
     const checkPhantomInstalled = () => {
       // 더 안전한 방식으로 Phantom 확인
-      const isPhantomInstalled = typeof window !== 'undefined' && 
-        window.solana && 
+      const isPhantomInstalled = typeof window !== 'undefined' &&
+        window.solana &&
         window.solana.isPhantom &&
         window.solana.connect;
       setPhantomInstalled(isPhantomInstalled);
@@ -23,13 +23,13 @@ export const WalletConnectPage = ({ onComplete, onSkip }) => {
 
     // 페이지 로드 후 약간의 지연을 두고 확인 (Phantom이 완전히 로드되기를 기다림)
     setTimeout(checkPhantomInstalled, 500);
-    
+
     // 페이지 포커스 시 다시 확인
     const handleFocus = () => {
       setTimeout(checkPhantomInstalled, 100);
     };
     window.addEventListener('focus', handleFocus);
-    
+
     return () => window.removeEventListener('focus', handleFocus);
   }, []);
 
@@ -45,9 +45,9 @@ export const WalletConnectPage = ({ onComplete, onSkip }) => {
     try {
       const connection = await phantomWallet.connect();
       const address = connection.publicKey;
-      
+
       setWalletAddress(address);
-      
+
       // 사용자 정보 업데이트
       await updateUser({
         wallet: {
@@ -65,7 +65,7 @@ export const WalletConnectPage = ({ onComplete, onSkip }) => {
 
     } catch (err) {
       console.error('Phantom wallet connection error:', err);
-      
+
       // 더 구체적인 에러 처리
       if (err.code === 4001 || err.message?.includes('User rejected')) {
         setError('사용자가 연결을 거부했습니다.');
@@ -92,7 +92,7 @@ export const WalletConnectPage = ({ onComplete, onSkip }) => {
     setTimeout(() => {
       const isPhantomInstalled = phantomWallet.isPhantomInstalled();
       setPhantomInstalled(isPhantomInstalled);
-      
+
       if (!isPhantomInstalled) {
         setError('팬텀 지갑이 아직 감지되지 않습니다. 확장 프로그램이 활성화되어 있는지 확인해주세요.');
       } else {
@@ -154,14 +154,14 @@ export const WalletConnectPage = ({ onComplete, onSkip }) => {
               <p className="text-gray-600 mb-6">
                 Solana 네트워크의 모델을 사용하기 위해 팬텀 지갑을 설치해주세요
               </p>
-              
+
               <button
                 onClick={openPhantomDownload}
                 className="w-full bg-purple-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-purple-700 transition-colors mb-4"
               >
                 팬텀 지갑 설치하기
               </button>
-              
+
               <button
                 onClick={recheckPhantom}
                 className="flex items-center justify-center space-x-2 w-full text-gray-600 hover:text-gray-800 text-sm"
@@ -181,7 +181,7 @@ export const WalletConnectPage = ({ onComplete, onSkip }) => {
               <p className="text-gray-600 mb-6">
                 팬텀 지갑을 연결하여 Solana 기반 AI 모델을 사용하세요
               </p>
-              
+
               <button
                 onClick={connectPhantomWallet}
                 disabled={connecting || walletAddress}

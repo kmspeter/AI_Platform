@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Bot, Mail, Lock, Eye, EyeOff } from 'lucide-react';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth } from '@/contexts';
 
 const SERVER_URL = 'https://kau-capstone.duckdns.org';
 

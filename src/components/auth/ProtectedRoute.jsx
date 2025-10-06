@@ -1,5 +1,5 @@
 import React from 'react';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth } from '@/contexts';
 import { LoadingSpinner } from '../ui/LoadingSpinner';
 
 export const ProtectedRoute = ({ children }) => {
