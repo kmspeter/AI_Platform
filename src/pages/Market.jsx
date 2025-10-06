@@ -8,8 +8,40 @@ import {
   normalizeLicense,
   normalizeMetrics,
   normalizeModality,
+  prepareMetricDisplay,
   selectDefaultPlan,
 } from '../utils/modelTransformers';
+
+const extractModelList = (data) => {
+  if (Array.isArray(data)) {
+    return data;
+  }
+
+  if (data && typeof data === 'object') {
+    if (Array.isArray(data.response)) {
+      return data.response;
+    }
+
+    if (data.response && typeof data.response === 'object') {
+      return [data.response];
+    }
+
+    const nestedWithResponse = Object.values(data).find(
+      (value) => value && typeof value === 'object' && Array.isArray(value.response)
+    );
+
+    if (nestedWithResponse) {
+      return nestedWithResponse.response;
+    }
+
+    const firstArray = Object.values(data).find((value) => Array.isArray(value));
+    if (firstArray) {
+      return firstArray;
+    }
+  }
+
+  return [];
+};
 import { FilterBar } from '../components/market/FilterBar';
 import { ModelCard } from '../components/market/ModelCard';
 import { ComparisonBar } from '../components/market/ComparisonBar';
@@ -40,11 +72,13 @@ const apiService = {
       
       console.log('API Response:', data);
       
-      if (!Array.isArray(data)) {
-        throw new Error('서버 응답이 배열 형태가 아닙니다.');
+      const models = extractModelList(data);
+
+      if (!Array.isArray(models) || models.length === 0) {
+        throw new Error('서버 응답에서 모델 데이터를 찾을 수 없습니다.');
       }
-      
-      return data.map(model => this.transformModel(model));
+
+      return models.map(model => this.transformModel(model));
     } catch (error) {
       console.error('Failed to fetch models:', error);
       
@@ -66,12 +100,16 @@ const apiService = {
       const licenseInfo = normalizeLicense(apiModel.license);
       const pricingPlans = extractPricingPlans(apiModel.pricing);
       const defaultPlan = selectDefaultPlan(pricingPlans);
+      const normalizedModality = normalizeModality(apiModel.modality);
+      const metricDisplay = prepareMetricDisplay(metrics, normalizedModality);
+      const metricHighlights = metricDisplay.slice(0, 2);
 
       const transformed = {
         id: apiModel.id?.toString() || Math.random().toString(36).substr(2, 9),
         name: apiModel.name || 'Unknown Model',
         creator: apiModel.uploader || 'Unknown Creator',
-        modality: normalizeModality(apiModel.modality),
+        modality: normalizedModality,
+        rawModality: apiModel.modality || '',
         license: licenseInfo.primary,
         pricing: {
           type: defaultPlan.price > 0 ? 'paid' : 'free',
@@ -83,13 +121,15 @@ const apiService = {
         },
         pricingPlans,
         metrics,
+        metricDisplay,
+        metricHighlights,
         version: apiModel.versionName || '1.0.0',
         versionName: apiModel.versionName || '1.0.0',
         releaseDate: apiModel.releaseDate || null,
         thumbnail: apiModel.thumbnail || MODEL_DEFAULT_THUMBNAIL,
         downloads: Math.floor(Math.random() * 10000), // API에 없는 데이터는 임시값
         tags: licenseInfo.labels.length > 0 ? licenseInfo.labels : ['라이선스 정보 없음'],
-        description: apiModel.overview || `${apiModel.name || 'Unknown Model'} - ${normalizeModality(apiModel.modality)} 모델입니다.`,
+        description: apiModel.overview || `${apiModel.name || 'Unknown Model'} - ${normalizedModality} 모델입니다.`,
       };
       
       console.log('Transformed model:', transformed);
