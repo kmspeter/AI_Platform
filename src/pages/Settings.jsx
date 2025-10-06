@@ -16,7 +16,7 @@ import {
   Check,
   AlertTriangle
 } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '@/contexts';
 
 export const Settings = () => {
   const { user, updateUser, logout } = useAuth();

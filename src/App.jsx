@@ -1,8 +1,8 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import { AuthProvider, useAuth } from './contexts/AuthContext';
-import { LoginPage } from './components/auth/LoginPage';
-import { WalletConnectPage } from './components/auth/WalletConnectPage';
+import { AuthProvider, useAuth } from '@/contexts';
+import { LoginPage } from '@/pages/auth/LoginPage';
+import { WalletConnectPage } from '@/pages/auth/WalletConnectPage';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
 import { Layout } from './components/layout/Layout';
 import { Market } from './pages/Market';

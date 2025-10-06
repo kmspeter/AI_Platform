@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { Search, Bell, ChevronDown, User, Wallet, Wifi, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { useAuth } from '../../contexts/AuthContext';
-import { phantomWallet } from '../../utils/phantomWallet';
+import { useAuth } from '@/contexts';
+import { phantomWallet } from '@/utils/phantomWallet';
 import { SearchOverlay } from '../search/SearchOverlay';
 
 export const Header = ({ onWalletConnect }) => {
