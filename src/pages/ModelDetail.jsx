@@ -2,6 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { cachedFetch } from '../utils/apiCache';
 import { resolveApiUrl } from '../config/api';
+import {
+  extractPricingPlans,
+  MODEL_DEFAULT_THUMBNAIL,
+  normalizeLicense,
+  normalizeMetrics,
+  normalizeModality,
+  selectDefaultPlan,
+} from '../utils/modelTransformers';
 import { 
   Star, 
   Download, 
@@ -38,111 +46,114 @@ const modelDetailService = {
         forceRefresh
       }, 10 * 60 * 1000);
       
-      return this.transformModel(data);
+      return this.transformModel(data, id);
     } catch (error) {
       console.error('Failed to fetch model detail:', error);
       throw error;
     }
   },
 
-  transformModel(apiModel) {
-    console.log('Raw API model data:', apiModel);
-    
+  transformModel(apiResponse, requestedId) {
+    const apiModels = Array.isArray(apiResponse) ? apiResponse : [apiResponse];
+    const targetModel = apiModels.find(model => model.id?.toString() === requestedId?.toString()) || apiModels[0];
+
+    if (!targetModel) {
+      throw new Error('요청한 모델을 찾을 수 없습니다.');
+    }
+
+    console.log('Raw API model data:', targetModel);
+
     // samples 데이터 파싱
     let parsedSamples = [];
-    if (apiModel.samples) {
-      if (Array.isArray(apiModel.samples)) {
-        parsedSamples = apiModel.samples.filter(sample => typeof sample === 'string');
-      } else if (typeof apiModel.samples === 'string') {
+    if (targetModel.samples) {
+      if (Array.isArray(targetModel.samples)) {
+        parsedSamples = targetModel.samples.filter(sample => typeof sample === 'string' || typeof sample === 'object');
+      } else if (typeof targetModel.samples === 'string') {
         try {
-          const parsed = JSON.parse(apiModel.samples);
+          const parsed = JSON.parse(targetModel.samples);
           if (Array.isArray(parsed)) {
-            parsedSamples = parsed.filter(sample => typeof sample === 'string');
+            parsedSamples = parsed.filter(sample => typeof sample === 'string' || typeof sample === 'object');
           }
         } catch (e) {
-          console.warn('Failed to parse samples:', apiModel.samples);
-          parsedSamples = [apiModel.samples]; // 문자열로 처리
+          console.warn('Failed to parse samples:', targetModel.samples);
+          parsedSamples = [targetModel.samples];
         }
-      } else if (typeof apiModel.samples === 'object') {
-        // 객체인 경우 문자열 값들만 추출
-        const values = Object.values(apiModel.samples);
-        parsedSamples = values.filter(val => typeof val === 'string');
+      } else if (typeof targetModel.samples === 'object') {
+        parsedSamples = Object.values(targetModel.samples);
       }
     }
 
     // lineage 데이터 파싱
     let parsedLineage = [];
-    if (apiModel.lineage) {
-      if (Array.isArray(apiModel.lineage)) {
-        parsedLineage = apiModel.lineage.filter(line => typeof line === 'string');
-      } else if (typeof apiModel.lineage === 'string') {
+    if (targetModel.lineage) {
+      if (Array.isArray(targetModel.lineage)) {
+        parsedLineage = targetModel.lineage;
+      } else if (typeof targetModel.lineage === 'string') {
         try {
-          const parsed = JSON.parse(apiModel.lineage);
+          const parsed = JSON.parse(targetModel.lineage);
           if (Array.isArray(parsed)) {
-            parsedLineage = parsed.filter(line => typeof line === 'string');
+            parsedLineage = parsed;
           }
         } catch (e) {
-          console.warn('Failed to parse lineage:', apiModel.lineage);
-          parsedLineage = [apiModel.lineage]; // 문자열로 처리
+          console.warn('Failed to parse lineage:', targetModel.lineage);
+          parsedLineage = [targetModel.lineage];
         }
-      } else if (typeof apiModel.lineage === 'object') {
-        // 객체인 경우 문자열 값들만 추출
-        const values = Object.values(apiModel.lineage);
-        parsedLineage = values.filter(val => typeof val === 'string');
+      } else if (typeof targetModel.lineage === 'object') {
+        parsedLineage = Object.values(targetModel.lineage);
       }
     }
 
-    console.log('Parsed samples:', parsedSamples);
-    console.log('Parsed lineage:', parsedLineage);
+    const metrics = normalizeMetrics(targetModel.metrics);
+    const licenseInfo = normalizeLicense(targetModel.license);
+    const pricingPlansRaw = extractPricingPlans(targetModel.pricing);
+    const defaultPlan = selectDefaultPlan(pricingPlansRaw);
+    const plansToUse = pricingPlansRaw.length > 0 ? pricingPlansRaw : [defaultPlan];
+    const pricingPlans = plansToUse.map(plan => ({
+      ...plan,
+      rights: plan.rights && plan.rights.length > 0
+        ? plan.rights
+        : (licenseInfo.labels.length > 0 ? licenseInfo.labels : ['권한 정보 미제공']),
+    }));
+
+    const releaseNotes = Array.isArray(targetModel.releaseNotes)
+      ? targetModel.releaseNotes
+          .map(note => (typeof note === 'string' ? note : JSON.stringify(note)))
+          .join('\n')
+      : (typeof targetModel.releaseNotes === 'string' ? targetModel.releaseNotes : '');
+
+    const hasIntegrityInfo = Boolean(targetModel.cidRoot || targetModel.checksumRoot || targetModel.onchainTx);
 
     // API 응답을 컴포넌트에서 사용하는 형태로 변환
     return {
-      id: apiModel.id?.toString(),
-      name: apiModel.name,
-      creator: apiModel.uploader,
-      versionName: apiModel.versionName,
-      status: apiModel.status,
-      description: apiModel.overview,
-      thumbnail: 'https://images.pexels.com/photos/8386440/pexels-photo-8386440.jpeg?auto=compress&cs=tinysrgb&w=400', // 기본 이미지
-      metrics: apiModel.metrics || {},
+      id: targetModel.id?.toString(),
+      name: targetModel.name || 'Unknown Model',
+      creator: targetModel.uploader || 'Unknown Creator',
+      versionName: targetModel.versionName || '1.0.0',
+      version: targetModel.versionName || '1.0.0',
+      status: targetModel.status || 'PUBLISHED',
+      description: targetModel.overview || `${targetModel.name || '이 모델'}에 대한 설명이 제공되지 않았습니다.`,
+      thumbnail: targetModel.thumbnail || `${MODEL_DEFAULT_THUMBNAIL}?auto=compress&cs=tinysrgb&w=400`,
+      metrics,
       samples: parsedSamples,
       lineage: parsedLineage,
-      releaseNotes: apiModel.releaseNotes,
-      releaseDate: apiModel.releaseDate,
-      modality: apiModel.modality,
-      license: apiModel.license,
+      releaseNotes,
+      releaseDate: targetModel.releaseDate || '',
+      modality: normalizeModality(targetModel.modality),
+      license: licenseInfo.primary,
+      licenseTags: licenseInfo.labels,
       pricing: {
-        plans: [
-          { 
-            id: 'research', 
-            name: '연구용', 
-            price: apiModel.priceResearch || 0, 
-            rights: ['학술연구', '비상업적', '논문발표', '교육목적'] 
-          },
-          { 
-            id: 'standard', 
-            name: '표준', 
-            price: apiModel.priceStandard || 0, 
-            rights: ['상업적', 'API 액세스', '배포허용', '수정가능'] 
-          },
-          { 
-            id: 'enterprise', 
-            name: '엔터프라이즈', 
-            price: apiModel.priceEnterprise || 0, 
-            rights: ['온프렘', '커스텀', '전용지원', '무제한'] 
-          }
-        ]
+        plans: pricingPlans,
       },
       integrity: {
-        cid: apiModel.cidRoot,
-        checksum: apiModel.checksumRoot,
-        txHash: apiModel.onchainTx,
-        verified: true, // API에서 제공되지 않으므로 기본값
-        storage: 'IPFS + Arweave' // API에서 제공되지 않으므로 기본값
+        cid: targetModel.cidRoot || '',
+        checksum: targetModel.checksumRoot || '',
+        txHash: targetModel.onchainTx || '',
+        verified: hasIntegrityInfo,
+        storage: targetModel.storage || '제공되지 않음',
       },
       reviews: {
-        average: 4.8, // 임시값 - API에서 제공되지 않음
-        count: 124,   // 임시값 - API에서 제공되지 않음
+        average: 4.8,
+        count: 124,
         items: [
           {
             id: 1,
@@ -169,7 +180,7 @@ export const ModelDetail = () => {
   const [model, setModel] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [selectedPlan, setSelectedPlan] = useState('standard');
+  const [selectedPlan, setSelectedPlan] = useState('');
   const [showAllMetrics, setShowAllMetrics] = useState(false);
   const [showProvenance, setShowProvenance] = useState(false);
   const [copiedHash, setCopiedHash] = useState('');
@@ -224,6 +235,15 @@ export const ModelDetail = () => {
       isCancelled = true;
     };
   }, [id]);
+
+  useEffect(() => {
+    if (model?.pricing?.plans?.length) {
+      const availablePlans = model.pricing.plans.map(plan => plan.id);
+      if (!selectedPlan || !availablePlans.includes(selectedPlan)) {
+        setSelectedPlan(model.pricing.plans[0].id);
+      }
+    }
+  }, [model, selectedPlan]);
 
   const sections = [
     { id: 'overview', name: '개요' },

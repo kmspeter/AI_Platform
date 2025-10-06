@@ -2,6 +2,14 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { ShoppingBag, AlertCircle, Loader2 } from 'lucide-react';
 import { cachedFetch, apiCache } from '../utils/apiCache';
 import { API_BASE_URL, resolveApiUrl } from '../config/api';
+import {
+  extractPricingPlans,
+  MODEL_DEFAULT_THUMBNAIL,
+  normalizeLicense,
+  normalizeMetrics,
+  normalizeModality,
+  selectDefaultPlan,
+} from '../utils/modelTransformers';
 import { FilterBar } from '../components/market/FilterBar';
 import { ModelCard } from '../components/market/ModelCard';
 import { ComparisonBar } from '../components/market/ComparisonBar';
@@ -54,63 +62,34 @@ const apiService = {
       console.log('Transforming model:', apiModel);
       
       // API 응답을 프론트엔드 형식으로 변환
-      let transformedMetrics = {};
-      
-      if (apiModel.metrics) {
-        if (typeof apiModel.metrics === 'object') {
-          // metrics가 객체인 경우 (일반적인 경우)
-          Object.keys(apiModel.metrics).forEach(key => {
-            if (key === 'raw') {
-              // raw 필드가 있는 경우 파싱 시도
-              try {
-                const rawMetrics = JSON.parse(apiModel.metrics.raw);
-                if (Array.isArray(rawMetrics)) {
-                  rawMetrics.forEach(metric => {
-                    if (metric && metric.code && metric.value !== undefined) {
-                      transformedMetrics[metric.code] = parseFloat(metric.value) || 0;
-                    }
-                  });
-                }
-              } catch (e) {
-                console.warn('Failed to parse raw metrics:', apiModel.metrics.raw, e);
-              }
-            } else {
-              // 일반 메트릭 필드
-              transformedMetrics[key] = parseFloat(apiModel.metrics[key]) || 0;
-            }
-          });
-        } else if (typeof apiModel.metrics === 'string') {
-          // metrics가 문자열인 경우
-          try {
-            const parsedMetrics = JSON.parse(apiModel.metrics);
-            if (Array.isArray(parsedMetrics)) {
-              parsedMetrics.forEach(metric => {
-                if (metric && metric.code && metric.value !== undefined) {
-                  transformedMetrics[metric.code] = parseFloat(metric.value) || 0;
-                }
-              });
-            }
-          } catch (e) {
-            console.warn('Failed to parse metrics string:', apiModel.metrics, e);
-          }
-        }
-      }
-      
+      const metrics = normalizeMetrics(apiModel.metrics);
+      const licenseInfo = normalizeLicense(apiModel.license);
+      const pricingPlans = extractPricingPlans(apiModel.pricing);
+      const defaultPlan = selectDefaultPlan(pricingPlans);
+
       const transformed = {
         id: apiModel.id?.toString() || Math.random().toString(36).substr(2, 9),
         name: apiModel.name || 'Unknown Model',
         creator: apiModel.uploader || 'Unknown Creator',
-        modality: apiModel.modality || 'text',
-        license: apiModel.license || 'unknown',
+        modality: normalizeModality(apiModel.modality),
+        license: licenseInfo.primary,
         pricing: {
-          type: apiModel.priceStandard > 0 ? 'paid' : 'free',
-          amount: parseFloat(apiModel.priceStandard) || 0,
-          currency: apiModel.currency || 'USDC'
+          type: defaultPlan.price > 0 ? 'paid' : 'free',
+          amount: defaultPlan.price,
+          currency: 'USD',
+          billingType: defaultPlan.billingType,
+          planId: defaultPlan.id,
+          planName: defaultPlan.name
         },
-        metrics: transformedMetrics,
+        pricingPlans,
+        metrics,
+        version: apiModel.versionName || '1.0.0',
+        versionName: apiModel.versionName || '1.0.0',
+        releaseDate: apiModel.releaseDate || null,
+        thumbnail: apiModel.thumbnail || MODEL_DEFAULT_THUMBNAIL,
         downloads: Math.floor(Math.random() * 10000), // API에 없는 데이터는 임시값
-        tags: [], // API에 없는 데이터는 빈 배열
-        description: `${apiModel.name || 'Unknown Model'} - ${apiModel.modality || 'AI'} 모델입니다.`,
+        tags: licenseInfo.labels.length > 0 ? licenseInfo.labels : ['라이선스 정보 없음'],
+        description: apiModel.overview || `${apiModel.name || 'Unknown Model'} - ${normalizeModality(apiModel.modality)} 모델입니다.`,
       };
       
       console.log('Transformed model:', transformed);
