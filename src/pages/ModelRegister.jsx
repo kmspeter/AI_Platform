@@ -132,8 +132,6 @@ export const ModelRegister = () => {
     license: ['research'],
     releaseDate: '',
     overview: '',
-    releaseNotes: '',          // 🔹 추가: 릴리스 노트
-    thumbnail: '',             // 🔹 추가: 썸네일 URL
     pricing: {
       research: {
         price: 0,
@@ -158,6 +156,8 @@ export const ModelRegister = () => {
     technicalSpecs: { ...TECHNICAL_SPEC_TEMPLATES.LLM },
     sampleData: { prompt: '', output: '' },
     parentModelId: '',
+    releaseNotes: '',
+    thumbnail: '',
   });
 
   const makeEmptyMetrics = (mod) => {
