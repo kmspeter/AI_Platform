@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Upload, RefreshCcw, Loader2, Plus, AlertTriangle, X, Pause } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { resolveIpfsUrl } from '../config/api';
+import { resolveApiUrl, resolveIpfsUrl } from '../config/api';
 
 const modalityOptions = [
   { value: 'LLM', label: 'LLM (언어모델)' },
