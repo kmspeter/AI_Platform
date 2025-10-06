@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Upload, RefreshCcw, Loader2, Plus, AlertTriangle, X, Pause } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { resolveApiUrl } from '../config/api';
+import { resolveIpfsUrl } from '../config/api';
 
 const modalityOptions = [
   { value: 'LLM', label: 'LLM (언어모델)' },
@@ -19,7 +19,7 @@ const licenseOptions = [
 const pricingPlans = ['research', 'standard', 'enterprise'];
 
 // IPFS 노드 서버 엔드포인트 (백엔드로 릴레이)
-const IPFS_NODE_ENDPOINT = resolveApiUrl('/ipfs/register');
+const IPFS_NODE_ENDPOINT = resolveIpfsUrl('/ipfs/register');
 
 // 모달리티별 기술 스펙 템플릿
 const TECHNICAL_SPEC_TEMPLATES = {
