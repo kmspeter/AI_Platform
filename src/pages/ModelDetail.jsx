@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { cachedFetch } from '../utils/apiCache';
+import { resolveApiUrl } from '../config/api';
 import { 
   Star, 
   Download, 
@@ -23,10 +24,11 @@ const modelDetailService = {
   async fetchModel(id, forceRefresh = false) {
     try {
       // 쿼리 파라미터 방식으로 변경
-      const apiUrl = `/api/models?id=${id}`;
-      
+      const apiPath = `/api/models?id=${id}`;
+      const apiUrl = resolveApiUrl(apiPath);
+
       console.log('Model detail API 요청 URL:', apiUrl);
-      
+
       const data = await cachedFetch(apiUrl, {
         method: 'GET',
         headers: {

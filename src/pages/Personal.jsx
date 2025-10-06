@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
-import { 
-  Plus, 
-  Bot, 
+import {
+  Plus,
+  Bot,
   Database, 
   Upload, 
   Eye, 
@@ -16,6 +16,7 @@ import {
   X
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { resolveApiUrl } from '../config/api';
 
 export const Personal = () => {
   const [activeTab, setActiveTab] = useState('overview');
@@ -24,7 +25,7 @@ export const Personal = () => {
   const [formStep, setFormStep] = useState(1); // 1: 타입선택, 2: 모델폼, 3: 데이터셋폼
 
   // 모델 업로드 관련 상태
-  const API_BASE = '/api';
+  const API_BASE = resolveApiUrl('/api');
   const modelFileInputRef = useRef(null);
   const [modelFile, setModelFile] = useState(null);
   const [modelStatus, setModelStatus] = useState('');

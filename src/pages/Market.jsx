@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { ShoppingBag, AlertCircle, Loader2 } from 'lucide-react';
 import { cachedFetch, apiCache } from '../utils/apiCache';
+import { API_BASE_URL, resolveApiUrl } from '../config/api';
 import { FilterBar } from '../components/market/FilterBar';
 import { ModelCard } from '../components/market/ModelCard';
 import { ComparisonBar } from '../components/market/ComparisonBar';
@@ -9,15 +10,13 @@ import { ComparisonOverlay } from '../components/market/ComparisonOverlay';
 // API 서비스 함수
 const apiService = {
   // 환경변수 기반 baseURL 설정
-  baseURL: '',
-  
+  baseURL: API_BASE_URL,
+
   async fetchModels(forceRefresh = false) {
     try {
       // 환경에 따른 API URL 생성
-      const apiUrl = import.meta.env.NODE_ENV === 'development' 
-        ? `/api/models`  // 개발환경: 프록시 사용
-        : `${this.baseURL}/api/models`;  // 프로덕션: 직접 호출
-      
+      const apiUrl = resolveApiUrl('/api/models');
+
       console.log('Environment:', import.meta.env.NODE_ENV);
       console.log('Base URL:', this.baseURL);
       console.log('API 요청 URL:', apiUrl);
