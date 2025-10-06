@@ -15,40 +15,18 @@ import {
   ChevronDown,
   X
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
-import { resolveApiUrl } from '../config/api';
+import { Link, useNavigate } from 'react-router-dom';
 
 export const Personal = () => {
   const [activeTab, setActiveTab] = useState('overview');
   const [showUploadModal, setShowUploadModal] = useState(false);
-  const [uploadType, setUploadType] = useState(''); // 'model' or 'dataset'
-  const [formStep, setFormStep] = useState(1); // 1: 타입선택, 2: 모델폼, 3: 데이터셋폼
+  const [formStep, setFormStep] = useState(1); // 1: 타입선택, 2: 데이터셋폼
+  const navigate = useNavigate();
 
-  // 모델 업로드 관련 상태
-  const API_BASE = resolveApiUrl('/api');
-  const modelFileInputRef = useRef(null);
-  const [modelFile, setModelFile] = useState(null);
-  const [modelStatus, setModelStatus] = useState('');
-
-  // 모델 폼 데이터
-  const [modelForm, setModelForm] = useState({
-    name: '',
-    overview: '',
-    versionName: '1.0.0',
-    modality: 'LLM',
-    license: ['research'],
-    pricing: {
-      research: { price: 0, billingType: 'free' },
-      standard: { price: 20, billingType: 'monthly_subscription' },
-      enterprise: { price: 100, billingType: 'one_time_purchase' }
-    },
-    technicalSpecs: {
-      contextWindow: '128k',
-      maxOutputTokens: 4096
-    },
-    compliance: '',
-    sample: ''
-  });
+  // 데이터셋 업로드 관련 상태 (향후 확장용)
+  const datasetFileInputRef = useRef(null);
+  const [datasetFile, setDatasetFile] = useState(null);
+  const [datasetStatus, setDatasetStatus] = useState('');
 
   // 데이터셋 폼 데이터 (기존 유지)
   const [datasetForm, setDatasetForm] = useState({
@@ -63,247 +41,24 @@ export const Personal = () => {
     { id: 'datasets', name: '내 데이터셋', icon: Database }
   ];
 
-  const modalityOptions = [
-    { value: 'LLM', label: 'LLM (언어모델)' },
-    { value: 'image-generation', label: '이미지 생성' },
-    { value: 'audio', label: '오디오' },
-    { value: 'multimodal', label: '멀티모달' },
-  ];
-
-  const licenseOptions = [
-    { value: 'research', label: '연구용' },
-    { value: 'commercial', label: '상업용' },
-    { value: 'open-source', label: '오픈소스' }
-  ];
-
-  const billingTypeOptions = [
-    { value: 'free', label: '무료' },
-    { value: 'monthly_subscription', label: '월간 구독' },
-    { value: 'one_time_purchase', label: '일회성 구매' }
-  ];
-
-  // 파일 업로드 관련
-  const handlePickModelFile = () => modelFileInputRef.current?.click();
-  const handleModelFileChange = (e) => {
-    const f = e.target.files?.[0];
-    setModelFile(f || null);
-    setModelStatus('');
+  // 파일 업로드 관련 (데이터셋)
+  const handlePickDatasetFile = () => datasetFileInputRef.current?.click();
+  const handleDatasetFileChange = (e) => {
+    const file = e.target.files?.[0];
+    setDatasetFile(file || null);
+    setDatasetStatus('');
   };
 
-  const uploadToServer = async (file, setStatus) => {
-    if (!file) return;
-    if (file.size > 100 * 1024 * 1024) {
-      setStatus('⌧ 파일 크기는 100MB를 초과할 수 없습니다.');
-      return;
-    }
-    setStatus('업로드 중…');
-
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-
-      const res = await fetch(`${API_BASE}/upload`, {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!res.ok) {
-        const text = await res.text().catch(() => '');
-        throw new Error(text || res.statusText || 'Upload failed');
-      }
-      const data = await res.json();
-      if (!data?.success) {
-        throw new Error(data?.error || 'Upload failed');
-      }
-
-      const { ipfsHash, metadataHash, encryptionKey, gateway } = data.data || {};
-      setStatus([
-        '✅ 업로드 완료!',
-        `IPFS Hash: ${ipfsHash}`,
-        `Metadata: ${metadataHash}`,
-        `Key: ${encryptionKey}`,
-        `Gateway: ${gateway}`
-      ].join('\n'));
-    } catch (err) {
-      setStatus(`⌧ 실패: ${err.message}`);
-    }
-  };
-
-  const handleModelUpload = async () => uploadToServer(modelFile, setModelStatus);
-
-  // 폼 데이터 업데이트
-  const updateModelForm = (field, value) => {
-    setModelForm(prev => ({
-      ...prev,
-      [field]: value
-    }));
-  };
-
-  const updatePricing = (plan, field, value) => {
-    setModelForm(prev => ({
-      ...prev,
-      pricing: {
-        ...prev.pricing,
-        [plan]: {
-          ...prev.pricing[plan],
-          [field]: value
-        }
-      }
-    }));
-  };
-
-  const updateTechnicalSpecs = (field, value) => {
-    setModelForm(prev => ({
-      ...prev,
-      technicalSpecs: {
-        ...prev.technicalSpecs,
-        [field]: value
-      }
-    }));
-  };
-
-  const handleLicenseChange = (license) => {
-    setModelForm(prev => ({
-      ...prev,
-      license: prev.license.includes(license)
-        ? prev.license.filter(l => l !== license)
-        : [...prev.license, license]
-    }));
-  };
-
-  // 모달리티별 기술 스펙 필드
-  const getTechnicalSpecsFields = () => {
-    switch (modelForm.modality) {
-      case 'LLM':
-      case 'code':
-        return (
-          <>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">컨텍스트 윈도우</label>
-              <input
-                type="text"
-                value={modelForm.technicalSpecs.contextWindow || ''}
-                onChange={(e) => updateTechnicalSpecs('contextWindow', e.target.value)}
-                className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                placeholder="예: 128k"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">최대 출력 토큰</label>
-              <input
-                type="number"
-                value={modelForm.technicalSpecs.maxOutputTokens || ''}
-                onChange={(e) => updateTechnicalSpecs('maxOutputTokens', parseInt(e.target.value))}
-                className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                placeholder="예: 4096"
-              />
-            </div>
-          </>
-        );
-      case 'image-generation':
-        return (
-          <>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">프롬프트 토큰 제한</label>
-              <input
-                type="number"
-                value={modelForm.technicalSpecs.promptTokens || ''}
-                onChange={(e) => updateTechnicalSpecs('promptTokens', parseInt(e.target.value))}
-                className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                placeholder="예: 1024"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">최대 출력 해상도</label>
-              <input
-                type="text"
-                value={modelForm.technicalSpecs.maxOutputResolution || ''}
-                onChange={(e) => updateTechnicalSpecs('maxOutputResolution', e.target.value)}
-                className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                placeholder="예: 2048×2048"
-              />
-            </div>
-          </>
-        );
-      case 'audio':
-        return (
-          <>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">최대 오디오 입력</label>
-              <input
-                type="text"
-                value={modelForm.technicalSpecs.maxAudioInput || ''}
-                onChange={(e) => updateTechnicalSpecs('maxAudioInput', e.target.value)}
-                className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                placeholder="예: 30분"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">샘플레이트</label>
-              <input
-                type="text"
-                value={modelForm.technicalSpecs.sampleRate || ''}
-                onChange={(e) => updateTechnicalSpecs('sampleRate', e.target.value)}
-                className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                placeholder="예: 16-48 kHz"
-              />
-            </div>
-          </>
-        );
-      case 'multimodal':
-        return (
-          <>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">텍스트 토큰 제한</label>
-              <input
-                type="text"
-                value={modelForm.technicalSpecs.textTokens || ''}
-                onChange={(e) => updateTechnicalSpecs('textTokens', e.target.value)}
-                className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                placeholder="예: 4k"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">최대 이미지 수</label>
-              <input
-                type="number"
-                value={modelForm.technicalSpecs.maxImages || ''}
-                onChange={(e) => updateTechnicalSpecs('maxImages', parseInt(e.target.value))}
-                className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                placeholder="예: 3"
-              />
-            </div>
-          </>
-        );
-      default:
-        return null;
-    }
+  const handleDatasetUpload = () => {
+    if (!datasetFile) return;
+    setDatasetStatus('데이터셋 업로드는 추후 지원될 예정입니다.');
   };
 
   const resetModal = () => {
     setShowUploadModal(false);
-    setUploadType('');
     setFormStep(1);
-    setModelFile(null);
-    setModelStatus('');
-    setModelForm({
-      name: '',
-      overview: '',
-      versionName: '1.0.0',
-      modality: 'LLM',
-      license: ['research'],
-      pricing: {
-        research: { price: 0, billingType: 'free' },
-        standard: { price: 20, billingType: 'monthly_subscription' },
-        enterprise: { price: 100, billingType: 'one_time_purchase' }
-      },
-      technicalSpecs: {
-        contextWindow: '128k',
-        maxOutputTokens: 4096
-      },
-      compliance: '',
-      sample: ''
-    });
+    setDatasetFile(null);
+    setDatasetStatus('');
     setDatasetForm({
       name: '',
       category: '대화',
@@ -647,8 +402,7 @@ export const Personal = () => {
               {/* 헤더 */}
               <div className="flex items-center justify-between p-6 border-b border-gray-400">
                 <h3 className="text-lg font-semibold text-gray-900">
-                  {formStep === 1 ? '업로드 타입 선택' : 
-                   uploadType === 'model' ? '모델 등록' : '데이터셋 등록'}
+                  {formStep === 1 ? '업로드 타입 선택' : '데이터셋 등록'}
                 </h3>
                 <button onClick={resetModal} className="text-gray-400 hover:text-gray-600">
                   <X className="h-6 w-6" />
@@ -661,8 +415,8 @@ export const Personal = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <button
                       onClick={() => {
-                        setUploadType('model');
-                        setFormStep(2);
+                        navigate('/models/register');
+                        resetModal();
                       }}
                       className="p-8 border-2 border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors text-center"
                     >
@@ -670,11 +424,10 @@ export const Personal = () => {
                       <h4 className="text-lg font-semibold text-gray-900 mb-2">AI 모델</h4>
                       <p className="text-gray-600">LLM, 이미지 생성, 오디오 모델 등</p>
                     </button>
-                    
+
                     <button
                       onClick={() => {
-                        setUploadType('dataset');
-                        setFormStep(3);
+                        setFormStep(2);
                       }}
                       className="p-8 border-2 border-gray-300 rounded-lg hover:border-green-500 hover:bg-green-50 transition-colors text-center"
                     >
@@ -685,217 +438,39 @@ export const Personal = () => {
                   </div>
                 )}
 
-                {/* Step 2: 모델 등록 폼 */}
-                {formStep === 2 && uploadType === 'model' && (
-                  <div className="space-y-8">
-                    {/* 파일 업로드 */}
-                    <div>
-                      <h4 className="text-lg font-semibold text-gray-900 mb-4">1. 모델 파일 업로드</h4>
-                      <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-400 transition-colors">
-                        <Upload className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                        <h5 className="text-lg font-medium text-gray-900 mb-2">모델 파일 업로드</h5>
-                        <p className="text-gray-600 mb-4">GGUF, PyTorch, ONNX 등 지원</p>
-                        <button
-                          onClick={handlePickModelFile}
-                          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                        >
-                          파일 선택
-                        </button>
-                        <input
-                          ref={modelFileInputRef}
-                          type="file"
-                          className="hidden"
-                          onChange={handleModelFileChange}
-                        />
-                        {modelFile && (
-                          <p className="mt-3 text-sm text-gray-700">{modelFile.name}</p>
-                        )}
-                      </div>
-                      
-                      {modelFile && (
-                        <div className="mt-4">
-                          <button
-                            onClick={handleModelUpload}
-                            className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-                          >
-                            IPFS에 업로드
-                          </button>
-                          {modelStatus && (
-                            <pre className="mt-2 text-xs whitespace-pre-wrap text-gray-700 bg-gray-50 p-3 rounded">{modelStatus}</pre>
-                          )}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* 기본 정보 */}
-                    <div>
-                      <h4 className="text-lg font-semibold text-gray-900 mb-4">2. 기본 정보</h4>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">모델명 *</label>
-                          <input
-                            type="text"
-                            value={modelForm.name}
-                            onChange={(e) => updateModelForm('name', e.target.value)}
-                            className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                            placeholder="모델 이름을 입력하세요"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">버전 *</label>
-                          <input
-                            type="text"
-                            value={modelForm.versionName}
-                            onChange={(e) => updateModelForm('versionName', e.target.value)}
-                            className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                            placeholder="예: 1.0.0"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">모달리티 *</label>
-                          <select
-                            value={modelForm.modality}
-                            onChange={(e) => updateModelForm('modality', e.target.value)}
-                            className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                          >
-                            {modalityOptions.map(option => (
-                              <option key={option.value} value={option.value}>{option.label}</option>
-                            ))}
-                          </select>
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">라이선스 *</label>
-                          <div className="space-y-2">
-                            {licenseOptions.map(option => (
-                              <label key={option.value} className="flex items-center">
-                                <input
-                                  type="checkbox"
-                                  checked={modelForm.license.includes(option.value)}
-                                  onChange={() => handleLicenseChange(option.value)}
-                                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                />
-                                <span className="ml-2 text-sm text-gray-700">{option.label}</span>
-                              </label>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="mt-4">
-                        <label className="block text-sm font-medium text-gray-700 mb-2">모델 설명 *</label>
-                        <textarea
-                          rows={3}
-                          value={modelForm.overview}
-                          onChange={(e) => updateModelForm('overview', e.target.value)}
-                          className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                          placeholder="모델에 대한 상세 설명을 입력하세요"
-                        />
-                      </div>
-                    </div>
-
-                    {/* 가격 설정 */}
-                    <div>
-                      <h4 className="text-lg font-semibold text-gray-900 mb-4">3. 가격 설정</h4>
-                      <div className="space-y-4">
-                        {['research', 'standard', 'enterprise'].map(plan => (
-                          <div key={plan} className="border border-gray-200 rounded-lg p-4">
-                            <h5 className="font-medium text-gray-900 mb-3 capitalize">{plan} 플랜</h5>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                              <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">가격 (USD)</label>
-                                <input
-                                  type="number"
-                                  value={modelForm.pricing[plan].price}
-                                  onChange={(e) => updatePricing(plan, 'price', parseFloat(e.target.value) || 0)}
-                                  className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                                  min="0"
-                                  step="0.01"
-                                />
-                              </div>
-                              <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">과금 방식</label>
-                                <select
-                                  value={modelForm.pricing[plan].billingType}
-                                  onChange={(e) => updatePricing(plan, 'billingType', e.target.value)}
-                                  className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                                >
-                                  {billingTypeOptions.map(option => (
-                                    <option key={option.value} value={option.value}>{option.label}</option>
-                                  ))}
-                                </select>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* 기술 스펙 */}
-                    <div>
-                      <h4 className="text-lg font-semibold text-gray-900 mb-4">4. 기술 스펙</h4>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {getTechnicalSpecsFields()}
-                      </div>
-                    </div>
-
-                    {/* 추가 정보 */}
-                    <div>
-                      <h4 className="text-lg font-semibold text-gray-900 mb-4">5. 추가 정보</h4>
-                      <div className="space-y-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">컴플라이언스 정보</label>
-                          <input
-                            type="text"
-                            value={modelForm.compliance}
-                            onChange={(e) => updateModelForm('compliance', e.target.value)}
-                            className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                            placeholder="예: 개인정보·수출 규제 없음"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">샘플 출력</label>
-                          <textarea
-                            rows={3}
-                            value={modelForm.sample}
-                            onChange={(e) => updateModelForm('sample', e.target.value)}
-                            className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                            placeholder="모델의 출력 예시를 입력하세요"
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* 버튼 */}
-                    <div className="flex space-x-3 pt-6 border-t border-gray-400">
-                      <button
-                        onClick={() => setFormStep(1)}
-                        className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                      >
-                        뒤로
-                      </button>
-                      <button
-                        onClick={() => {
-                          // 모델 등록 로직
-                          console.log('모델 등록:', modelForm);
-                          resetModal();
-                        }}
-                        className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                      >
-                        모델 등록
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {/* Step 3: 데이터셋 등록 폼 (기존 유지) */}
-                {formStep === 3 && uploadType === 'dataset' && (
+                {/* Step 2: 데이터셋 등록 폼 (기존 유지) */}
+                {formStep === 2 && (
                   <div className="space-y-6">
                     <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-green-400 transition-colors">
                       <Upload className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                       <h4 className="text-lg font-medium text-gray-900 mb-2">데이터셋 파일 업로드</h4>
                       <p className="text-gray-600 mb-4">JSON, CSV, Parquet 등 지원</p>
-                      <button className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
+                      <button
+                        onClick={handlePickDatasetFile}
+                        className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                      >
                         파일 선택
                       </button>
+                      <input
+                        ref={datasetFileInputRef}
+                        type="file"
+                        className="hidden"
+                        onChange={handleDatasetFileChange}
+                      />
+                      {datasetFile && (
+                        <p className="mt-3 text-sm text-gray-700">{datasetFile.name}</p>
+                      )}
+                      {datasetFile && (
+                        <button
+                          onClick={handleDatasetUpload}
+                          className="mt-4 w-full bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
+                        >
+                          IPFS에 업로드
+                        </button>
+                      )}
+                      {datasetStatus && (
+                        <p className="mt-2 text-xs text-gray-600 whitespace-pre-wrap">{datasetStatus}</p>
+                      )}
                     </div>
 
                     <div className="space-y-4">
