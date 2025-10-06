@@ -1,5 +1,7 @@
 const DEFAULT_BASE_URL = 'https://kau-capstone.duckdns.org';
-const DEFAULT_IPFS_BASE_URL = 'http://52.79.235.41:3001'; // IPFS 노드 서버 기본값
+// 기본값을 빈 문자열로 두어 동일 출처의 프록시(예: Vercel rewrite)를 통해
+// IPFS 노드 서버에 접근하도록 한다. 필요 시 환경변수로 직접 노드 주소를 주입.
+const DEFAULT_IPFS_BASE_URL = '';
 
 export const API_BASE_URL = (
   import.meta.env?.VITE_API_BASE_URL || DEFAULT_BASE_URL
