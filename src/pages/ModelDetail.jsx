@@ -8,24 +8,59 @@ import {
   normalizeLicense,
   normalizeMetrics,
   normalizeModality,
+  normalizeSampleEntries,
+  prepareMetricDisplay,
+  getMetricHighlights,
+  formatTechnicalSpecs,
   selectDefaultPlan,
 } from '../utils/modelTransformers';
-import { 
-  Star, 
-  Download, 
-  ExternalLink, 
-  ChevronDown,
+import {
+  Star,
   Play,
   ShoppingCart,
   Copy,
   Check,
-  Eye,
   Shield,
-  Clock,
   Bot,
   Loader2,
   AlertCircle
 } from 'lucide-react';
+
+const extractModelResponse = (data) => {
+  if (!data) return [];
+
+  if (Array.isArray(data)) {
+    return data;
+  }
+
+  if (data && typeof data === 'object') {
+    if (Array.isArray(data.response)) {
+      return data.response;
+    }
+
+    if (data.response && typeof data.response === 'object') {
+      return [data.response];
+    }
+
+    const nestedWithResponse = Object.values(data).find(
+      (value) => value && typeof value === 'object' && 'response' in value
+    );
+
+    if (nestedWithResponse) {
+      const nestedResponse = nestedWithResponse.response;
+      if (Array.isArray(nestedResponse)) {
+        return nestedResponse;
+      }
+      if (nestedResponse && typeof nestedResponse === 'object') {
+        return [nestedResponse];
+      }
+    }
+
+    return [data];
+  }
+
+  return [];
+};
 
 // API 서비스
 const modelDetailService = {
@@ -54,7 +89,7 @@ const modelDetailService = {
   },
 
   transformModel(apiResponse, requestedId) {
-    const apiModels = Array.isArray(apiResponse) ? apiResponse : [apiResponse];
+    const apiModels = extractModelResponse(apiResponse);
     const targetModel = apiModels.find(model => model.id?.toString() === requestedId?.toString()) || apiModels[0];
 
     if (!targetModel) {
@@ -62,26 +97,15 @@ const modelDetailService = {
     }
 
     console.log('Raw API model data:', targetModel);
-
-    // samples 데이터 파싱
-    let parsedSamples = [];
-    if (targetModel.samples) {
-      if (Array.isArray(targetModel.samples)) {
-        parsedSamples = targetModel.samples.filter(sample => typeof sample === 'string' || typeof sample === 'object');
-      } else if (typeof targetModel.samples === 'string') {
-        try {
-          const parsed = JSON.parse(targetModel.samples);
-          if (Array.isArray(parsed)) {
-            parsedSamples = parsed.filter(sample => typeof sample === 'string' || typeof sample === 'object');
-          }
-        } catch (e) {
-          console.warn('Failed to parse samples:', targetModel.samples);
-          parsedSamples = [targetModel.samples];
-        }
-      } else if (typeof targetModel.samples === 'object') {
-        parsedSamples = Object.values(targetModel.samples);
-      }
-    }
+    const normalizedModality = normalizeModality(targetModel.modality);
+    const metrics = normalizeMetrics(targetModel.metrics);
+    const licenseInfo = normalizeLicense(targetModel.license);
+    const pricingPlansRaw = extractPricingPlans(targetModel.pricing);
+    const defaultPlan = selectDefaultPlan(pricingPlansRaw);
+    const metricDisplay = prepareMetricDisplay(metrics, normalizedModality);
+    const metricHighlights = getMetricHighlights(metrics, normalizedModality);
+    const samples = normalizeSampleEntries(targetModel, normalizedModality);
+    const technicalSpecs = formatTechnicalSpecs(targetModel.technicalSpecs);
 
     // lineage 데이터 파싱
     let parsedLineage = [];
@@ -103,10 +127,6 @@ const modelDetailService = {
       }
     }
 
-    const metrics = normalizeMetrics(targetModel.metrics);
-    const licenseInfo = normalizeLicense(targetModel.license);
-    const pricingPlansRaw = extractPricingPlans(targetModel.pricing);
-    const defaultPlan = selectDefaultPlan(pricingPlansRaw);
     const plansToUse = pricingPlansRaw.length > 0 ? pricingPlansRaw : [defaultPlan];
     const pricingPlans = plansToUse.map(plan => ({
       ...plan,
@@ -116,10 +136,24 @@ const modelDetailService = {
     }));
 
     const releaseNotes = Array.isArray(targetModel.releaseNotes)
-      ? targetModel.releaseNotes
-          .map(note => (typeof note === 'string' ? note : JSON.stringify(note)))
-          .join('\n')
-      : (typeof targetModel.releaseNotes === 'string' ? targetModel.releaseNotes : '');
+      ? targetModel.releaseNotes.map((note, index) => {
+          if (typeof note === 'string') {
+            return {
+              id: `release-note-${index}`,
+              category: '',
+              change: note,
+              impact: '',
+            };
+          }
+
+          return {
+            id: note.id || `release-note-${index}`,
+            category: note.category || '',
+            change: note.change || '',
+            impact: note.impact || '',
+          };
+        })
+      : [];
 
     const hasIntegrityInfo = Boolean(targetModel.cidRoot || targetModel.checksumRoot || targetModel.onchainTx);
 
@@ -134,16 +168,21 @@ const modelDetailService = {
       description: targetModel.overview || `${targetModel.name || '이 모델'}에 대한 설명이 제공되지 않았습니다.`,
       thumbnail: targetModel.thumbnail || `${MODEL_DEFAULT_THUMBNAIL}?auto=compress&cs=tinysrgb&w=400`,
       metrics,
-      samples: parsedSamples,
+      metricDisplay,
+      metricHighlights,
+      samples,
       lineage: parsedLineage,
       releaseNotes,
       releaseDate: targetModel.releaseDate || '',
-      modality: normalizeModality(targetModel.modality),
+      modality: normalizedModality,
+      rawModality: targetModel.modality || '',
       license: licenseInfo.primary,
       licenseTags: licenseInfo.labels,
       pricing: {
         plans: pricingPlans,
       },
+      technicalSpecs,
+      compliance: targetModel.compliance || '',
       integrity: {
         cid: targetModel.cidRoot || '',
         checksum: targetModel.checksumRoot || '',
@@ -182,8 +221,31 @@ export const ModelDetail = () => {
   const [error, setError] = useState(null);
   const [selectedPlan, setSelectedPlan] = useState('');
   const [showAllMetrics, setShowAllMetrics] = useState(false);
-  const [showProvenance, setShowProvenance] = useState(false);
   const [copiedHash, setCopiedHash] = useState('');
+
+  const getSampleTypeLabel = (type) => {
+    switch (type) {
+      case 'image':
+        return '이미지';
+      case 'audio':
+        return '오디오';
+      case 'text':
+      default:
+        return '텍스트';
+    }
+  };
+
+  const isUrl = (value) => typeof value === 'string' && /^https?:\/\//i.test(value);
+
+  const formatBillingType = (value) =>
+    (value || '')
+      .toString()
+      .replace(/_/g, ' ');
+
+  const formatNumberWithCommas = (value) => {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? numeric.toLocaleString() : value;
+  };
 
   // 새로고침 함수
   const refreshModel = async () => {
@@ -261,11 +323,6 @@ export const ModelDetail = () => {
   };
 
   // 릴리스 노트를 줄바꿈 기준으로 배열로 변환
-  const parseReleaseNotes = (notes) => {
-    if (!notes) return [];
-    return notes.split('\n').filter(note => note.trim());
-  };
-
   // 로딩 상태
   if (loading) {
     return (
@@ -307,9 +364,12 @@ export const ModelDetail = () => {
     );
   }
 
-  const topMetrics = Object.entries(model.metrics).slice(0, 3);
-  const allMetrics = Object.entries(model.metrics);
-  const releaseNotes = parseReleaseNotes(model.releaseNotes);
+  const topMetrics = (Array.isArray(model.metricHighlights) && model.metricHighlights.length > 0
+    ? model.metricHighlights.slice(0, 3)
+    : (model.metricDisplay || []).slice(0, 3));
+  const allMetrics = model.metricDisplay || [];
+  const hasAdditionalMetrics = allMetrics.length > topMetrics.length;
+  const releaseNotes = Array.isArray(model.releaseNotes) ? model.releaseNotes : [];
 
   return (
     <div className="flex-1">
@@ -393,12 +453,108 @@ export const ModelDetail = () => {
               {model.samples && model.samples.length > 0 && (
                 <div className="bg-gray-50 rounded-xl p-6 mb-8">
                   <h3 className="text-lg font-semibold text-gray-900 mb-4">샘플 출력</h3>
-                  <div className="space-y-3">
+                  <div className="space-y-4">
                     {model.samples.map((sample, index) => (
-                      <div key={index} className="bg-white rounded-lg p-4 border border-gray-200">
-                        <p className="text-gray-700 italic leading-relaxed">
-                          {typeof sample === 'string' ? sample : JSON.stringify(sample)}
-                        </p>
+                      <div key={sample.id || index} className="bg-white rounded-lg p-4 border border-gray-200 space-y-4">
+                        <div className="flex items-center justify-between">
+                          <span className="px-2 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-semibold">
+                            {getSampleTypeLabel(sample.type)} 샘플
+                          </span>
+                          <span className="text-xs text-gray-500">#{index + 1}</span>
+                        </div>
+
+                        {sample.prompt && (
+                          <div>
+                            <div className="text-xs font-medium text-gray-500 mb-1">프롬프트</div>
+                            <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{sample.prompt}</p>
+                          </div>
+                        )}
+
+                        {sample.inputImage && (
+                          <div>
+                            <div className="text-xs font-medium text-gray-500 mb-1">입력 이미지</div>
+                            {isUrl(sample.inputImage) ? (
+                              <img
+                                src={sample.inputImage}
+                                alt={`입력 이미지 ${index + 1}`}
+                                className="w-full rounded-lg object-cover border border-gray-200"
+                              />
+                            ) : (
+                              <div className="px-3 py-2 bg-white border border-dashed border-gray-300 rounded-lg text-sm text-gray-600">
+                                {sample.inputImage}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {sample.outputImage && (
+                          <div>
+                            <div className="text-xs font-medium text-gray-500 mb-1">생성 이미지</div>
+                            {isUrl(sample.outputImage) ? (
+                              <img
+                                src={sample.outputImage}
+                                alt={`생성 이미지 ${index + 1}`}
+                                className="w-full rounded-lg object-cover border border-gray-200"
+                              />
+                            ) : (
+                              <div className="px-3 py-2 bg-white border border-dashed border-gray-300 rounded-lg text-sm text-gray-600">
+                                {sample.outputImage}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {sample.inputAudio && (
+                          <div>
+                            <div className="text-xs font-medium text-gray-500 mb-1">입력 오디오</div>
+                            {isUrl(sample.inputAudio) ? (
+                              <audio controls className="w-full">
+                                <source src={sample.inputAudio} />
+                                브라우저에서 오디오를 재생할 수 없습니다.
+                              </audio>
+                            ) : (
+                              <div className="px-3 py-2 bg-white border border-dashed border-gray-300 rounded-lg text-sm text-gray-600">
+                                {sample.inputAudio}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {sample.outputAudio && (
+                          <div>
+                            <div className="text-xs font-medium text-gray-500 mb-1">출력 오디오</div>
+                            {isUrl(sample.outputAudio) ? (
+                              <audio controls className="w-full">
+                                <source src={sample.outputAudio} />
+                                브라우저에서 오디오를 재생할 수 없습니다.
+                              </audio>
+                            ) : (
+                              <div className="px-3 py-2 bg-white border border-dashed border-gray-300 rounded-lg text-sm text-gray-600">
+                                {sample.outputAudio}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {sample.output && (
+                          <div>
+                            <div className="text-xs font-medium text-gray-500 mb-1">출력</div>
+                            <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{sample.output}</p>
+                          </div>
+                        )}
+
+                        {!sample.prompt && !sample.output && typeof sample.raw === 'string' && (
+                          <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{sample.raw}</p>
+                        )}
+
+                        {sample.raw && typeof sample.raw === 'object' && (
+                          <details className="text-xs text-gray-500">
+                            <summary className="cursor-pointer select-none">원본 데이터 보기</summary>
+                            <pre className="mt-2 p-2 bg-gray-100 rounded-lg overflow-x-auto whitespace-pre-wrap text-[11px] text-gray-600">
+                              {JSON.stringify(sample.raw, null, 2)}
+                            </pre>
+                          </details>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -410,10 +566,21 @@ export const ModelDetail = () => {
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900 mb-4">릴리스 노트</h3>
                   <div className="space-y-3">
-                    {releaseNotes.map((note, index) => (
-                      <div key={index} className="flex items-start space-x-3">
-                        <div className="w-2 h-2 bg-blue-600 rounded-full mt-2"></div>
-                        <p className="text-gray-700">{note}</p>
+                    {releaseNotes.map((note) => (
+                      <div key={note.id} className="bg-white border border-gray-200 rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center space-x-2">
+                            {note.category && (
+                              <span className="px-2 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-semibold">
+                                {note.category}
+                              </span>
+                            )}
+                            <span className="text-sm font-medium text-gray-900">{note.change}</span>
+                          </div>
+                        </div>
+                        {note.impact && (
+                          <p className="text-sm text-gray-600 mt-1">{note.impact}</p>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -424,52 +591,92 @@ export const ModelDetail = () => {
               )}
             </div>
 
-            {/* Pricing Card */}
-            <div className="bg-white rounded-xl border border-gray-200 p-6 h-fit shadow-sm">
-              <h3 className="text-lg font-semibold text-gray-900 mb-6">가격 플랜</h3>
-              <div className="space-y-4">
-                {model.pricing.plans.map(plan => (
-                  <label key={plan.id} className={`flex items-start space-x-3 p-4 border-2 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors ${
-                    selectedPlan === plan.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
-                  }`}>
-                    <input
-                      type="radio"
-                      name="plan"
-                      value={plan.id}
-                      checked={selectedPlan === plan.id}
-                      onChange={(e) => setSelectedPlan(e.target.value)}
-                      className="mt-1 text-blue-600 focus:ring-blue-500"
-                    />
-                    <div className="flex-1">
-                      <div className="font-semibold text-gray-900">{plan.name}</div>
-                      <div className="text-sm text-gray-600 mb-3">
-                        {plan.price === 0 ? '무료' : `$${plan.price} USDC`}
+            <div className="space-y-6">
+              <div id="pricing" className="bg-white rounded-xl border border-gray-200 p-6 h-fit shadow-sm">
+                <h3 className="text-lg font-semibold text-gray-900 mb-6">가격 플랜</h3>
+                <div className="space-y-4">
+                  {model.pricing.plans.map(plan => (
+                    <label key={plan.id} className={`flex items-start space-x-3 p-4 border-2 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors ${
+                      selectedPlan === plan.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+                    }`}>
+                      <input
+                        type="radio"
+                        name="plan"
+                        value={plan.id}
+                        checked={selectedPlan === plan.id}
+                        onChange={(e) => setSelectedPlan(e.target.value)}
+                        className="mt-1 text-blue-600 focus:ring-blue-500"
+                      />
+                      <div className="flex-1">
+                        <div className="font-semibold text-gray-900">{plan.name}</div>
+                        <div className="text-sm text-gray-600 mb-3">
+                          {plan.price === 0 ? '무료' : `$${plan.price} USDC`}
+                        </div>
+                        {plan.billingType && (
+                          <div className="text-xs text-gray-500 mb-2">과금 방식: {formatBillingType(plan.billingType)}</div>
+                        )}
+                        {plan.rights.length > 0 && (
+                          <div className="grid grid-cols-2 gap-1 mb-3">
+                            {plan.rights.map(right => (
+                              <span key={right} className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-medium text-center">
+                                {right}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        {(plan.metadata?.monthlyTokenLimit || plan.metadata?.monthlyGenerationLimit || plan.metadata?.monthlyRequestLimit) && (
+                          <div className="space-y-1 text-xs text-gray-500">
+                            {plan.metadata?.monthlyTokenLimit && (
+                              <div>월 토큰 한도: {formatNumberWithCommas(plan.metadata.monthlyTokenLimit)}</div>
+                            )}
+                            {plan.metadata?.monthlyGenerationLimit && (
+                              <div>월 생성 한도: {formatNumberWithCommas(plan.metadata.monthlyGenerationLimit)}</div>
+                            )}
+                            {plan.metadata?.monthlyRequestLimit && (
+                              <div>월 요청 한도: {formatNumberWithCommas(plan.metadata.monthlyRequestLimit)}</div>
+                            )}
+                          </div>
+                        )}
                       </div>
-                      <div className="grid grid-cols-2 gap-1">
-                        {plan.rights.map(right => (
-                          <span key={right} className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-medium text-center">
-                            {right}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  </label>
-                ))}
-              </div>
-              
-              <div className="mt-6 pt-4 border-t border-gray-200">
-                <div className="text-sm text-gray-600 mb-2">예상 비용</div>
-                <div className="text-2xl font-bold text-gray-900">
-                  ${model.pricing.plans.find(p => p.id === selectedPlan)?.price || 0} USDC
+                    </label>
+                  ))}
                 </div>
+
+                <div className="mt-6 pt-4 border-t border-gray-200">
+                  <div className="text-sm text-gray-600 mb-2">예상 비용</div>
+                  <div className="text-2xl font-bold text-gray-900">
+                    ${model.pricing.plans.find(p => p.id === selectedPlan)?.price || 0} USDC
+                  </div>
+                </div>
+
+                <Link
+                  to={`/checkout/${id}?plan=${selectedPlan}`}
+                  className="w-full mt-6 bg-blue-600 text-white px-4 py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors text-center block shadow-sm"
+                >
+                  구매로 이동
+                </Link>
               </div>
 
-              <Link
-                to={`/checkout/${id}?plan=${selectedPlan}`}
-                className="w-full mt-6 bg-blue-600 text-white px-4 py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors text-center block shadow-sm"
-              >
-                구매로 이동
-              </Link>
+              {model.technicalSpecs && model.technicalSpecs.length > 0 && (
+                <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">기술 사양</h3>
+                  <dl className="space-y-3">
+                    {model.technicalSpecs.map(spec => (
+                      <div key={spec.key} className="flex items-start justify-between">
+                        <dt className="text-sm font-medium text-gray-600">{spec.label}</dt>
+                        <dd className="text-sm text-gray-900">{spec.value}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                </div>
+              )}
+
+              {model.compliance && (
+                <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">준수/라이선스</h3>
+                  <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{model.compliance}</p>
+                </div>
+              )}
             </div>
           </div>
         </section>
@@ -481,18 +688,20 @@ export const ModelDetail = () => {
           {/* Top 3 Metrics */}
           {topMetrics.length > 0 && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-              {topMetrics.map(([metric, value]) => (
-                <div key={metric} className="bg-white rounded-xl border border-gray-200 p-6 text-center shadow-sm">
-                  <div className="text-3xl font-bold text-gray-900 mb-2">{value}%</div>
-                  <div className="text-sm font-medium text-gray-600 uppercase">{metric}</div>
-                  <div className="text-xs text-gray-500 mt-1">벤치마크 기준</div>
+              {topMetrics.map(metric => (
+                <div key={metric.key || metric.label} className="bg-white rounded-xl border border-gray-200 p-6 text-center shadow-sm">
+                  <div className="text-3xl font-bold text-gray-900 mb-2">{metric.formattedValue}</div>
+                  <div className="text-sm font-medium text-gray-600 uppercase">{metric.label}</div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    {metric.description || '벤치마크 기준'}
+                  </div>
                 </div>
               ))}
             </div>
           )}
 
           {/* Show More Metrics */}
-          {allMetrics.length > 3 && (
+          {hasAdditionalMetrics && (
             <button
               onClick={() => setShowAllMetrics(!showAllMetrics)}
               className="text-blue-600 hover:text-blue-700 font-medium text-sm"
@@ -508,16 +717,16 @@ export const ModelDetail = () => {
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">지표</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">점수</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">데이터셋</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">설명</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">버전</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {allMetrics.map(([metric, value]) => (
-                    <tr key={metric}>
-                      <td className="px-6 py-4 text-sm font-medium text-gray-900 uppercase">{metric}</td>
-                      <td className="px-6 py-4 text-sm text-gray-900">{value}%</td>
-                      <td className="px-6 py-4 text-sm text-gray-600">표준 벤치마크</td>
+                  {allMetrics.map(metric => (
+                    <tr key={metric.key || metric.label}>
+                      <td className="px-6 py-4 text-sm font-medium text-gray-900 uppercase">{metric.label}</td>
+                      <td className="px-6 py-4 text-sm text-gray-900">{metric.formattedValue}</td>
+                      <td className="px-6 py-4 text-sm text-gray-600">{metric.description || '표준 벤치마크'}</td>
                       <td className="px-6 py-4 text-sm text-gray-600">{model.versionName}</td>
                     </tr>
                   ))}

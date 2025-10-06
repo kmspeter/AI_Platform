@@ -1,11 +1,31 @@
 import React from 'react';
-import { X, ExternalLink } from 'lucide-react';
+import { X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 export const ComparisonOverlay = ({ models, onClose, onRemove }) => {
   if (models.length === 0) return null;
 
-  const allMetrics = [...new Set(models.flatMap(model => Object.keys(model.metrics)))];
+  const allMetrics = [
+    ...new Set(
+      models.flatMap(model =>
+        (model.metricDisplay || model.metricHighlights || []).map(metric => metric.key || metric.label)
+      )
+    )
+  ];
+
+  const resolveMetricInfo = (metricKey) => {
+    for (const model of models) {
+      const metric = (model.metricDisplay || model.metricHighlights || []).find(
+        item => item.key === metricKey || item.label === metricKey
+      );
+
+      if (metric) {
+        return metric;
+      }
+    }
+
+    return { label: metricKey, formattedValue: '-', description: '' };
+  };
 
   return (
     <div className="fixed inset-0 z-50 overflow-hidden">
@@ -65,18 +85,33 @@ export const ComparisonOverlay = ({ models, onClose, onRemove }) => {
               ))}
 
               {/* Metrics */}
-              {allMetrics.map(metric => (
-                <React.Fragment key={metric}>
-                  <div className="font-medium text-gray-700 py-3 capitalize">{metric}</div>
-                  {models.map(model => (
-                    <div key={`${model.id}-${metric}`} className="py-3">
-                      <div className="text-sm font-semibold text-gray-900">
-                        {model.metrics[metric] ? `${model.metrics[metric]}%` : '-'}
-                      </div>
+              {allMetrics.map(metricKey => {
+                const info = resolveMetricInfo(metricKey);
+
+                return (
+                  <React.Fragment key={metricKey}>
+                    <div className="font-medium text-gray-700 py-3">
+                      <div className="text-sm text-gray-900">{info.label}</div>
+                      {info.description && (
+                        <div className="text-xs text-gray-500 mt-1">{info.description}</div>
+                      )}
                     </div>
-                  ))}
-                </React.Fragment>
-              ))}
+                    {models.map(model => {
+                      const metric = (model.metricDisplay || model.metricHighlights || []).find(
+                        item => item.key === metricKey || item.label === metricKey
+                      );
+
+                      return (
+                        <div key={`${model.id}-${metricKey}`} className="py-3">
+                          <div className="text-sm font-semibold text-gray-900">
+                            {metric ? metric.formattedValue : '-'}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </React.Fragment>
+                );
+              })}
 
               {/* Actions */}
               <div className="font-medium text-gray-700 py-3">액션</div>

@@ -12,6 +12,7 @@ export const ModelCard = ({
       case 'LLM': return 'bg-blue-100 text-blue-800';
       case 'VLM': return 'bg-purple-100 text-purple-800';
       case '이미지': return 'bg-green-100 text-green-800';
+      case '오디오': return 'bg-orange-100 text-orange-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
@@ -26,8 +27,13 @@ export const ModelCard = ({
     }
   };
 
-  // Get top 2 metrics only
-  const topMetrics = Object.entries(model.metrics).slice(0, 2);
+  const metricHighlights = Array.isArray(model.metricHighlights) && model.metricHighlights.length > 0
+    ? model.metricHighlights
+    : Object.entries(model.metrics).slice(0, 2).map(([key, value]) => ({
+        key,
+        label: key,
+        formattedValue: typeof value === 'number' ? value.toString() : String(value),
+      }));
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-6 hover:shadow-lg hover:border-gray-300 transition-all duration-200 group">
@@ -59,10 +65,10 @@ export const ModelCard = ({
 
       {/* Top 2 Metrics Only */}
       <div className="grid grid-cols-2 gap-3 mb-4">
-        {topMetrics.map(([metric, value]) => (
-          <div key={metric} className="text-center p-3 bg-gray-50 rounded-lg">
-            <div className="text-xs text-gray-600 mb-1 uppercase font-medium">{metric}</div>
-            <div className="text-lg font-bold text-gray-900">{value}%</div>
+        {metricHighlights.map((metric) => (
+          <div key={metric.key || metric.label} className="text-center p-3 bg-gray-50 rounded-lg">
+            <div className="text-xs text-gray-600 mb-1 uppercase font-medium truncate">{metric.label}</div>
+            <div className="text-lg font-bold text-gray-900">{metric.formattedValue}</div>
           </div>
         ))}
       </div>
