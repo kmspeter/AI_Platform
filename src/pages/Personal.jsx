@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import {
   Plus,
   Bot,
-  Database, 
+  Database,
   Upload, 
   Eye, 
   Settings, 
@@ -16,12 +16,14 @@ import {
   X
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '@/contexts';
 
 export const Personal = () => {
   const [activeTab, setActiveTab] = useState('overview');
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [formStep, setFormStep] = useState(1); // 1: 타입선택, 2: 데이터셋폼
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   // 데이터셋 업로드 관련 상태 (향후 확장용)
   const datasetFileInputRef = useRef(null);
@@ -133,6 +135,14 @@ export const Personal = () => {
     { id: '3', name: '박분석가', email: 'analyst@corp.com', purchasedItem: 'Medical Images Dataset', amount: 200, date: '1일 전' }
   ];
 
+  const handleUploadClick = () => {
+    if (!user?.wallet?.connected) {
+      alert('모델이나 데이터셋을 등록하려면 먼저 지갑을 연결해주세요.');
+      return;
+    }
+    setShowUploadModal(true);
+  };
+
   return (
     <div className="flex-1 p-6">
       <div className="max-w-7xl mx-auto">
@@ -171,7 +181,7 @@ export const Personal = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-gray-600">총 수익</p>
-                    <p className="text-2xl font-bold text-gray-900">${totalRevenue.toLocaleString()}</p>
+                    <p className="text-2xl font-bold text-gray-900">{`${totalRevenue.toLocaleString()} SOL`}</p>
                     <p className="text-sm text-green-600 mt-1">+12% vs 지난달</p>
                   </div>
                   <DollarSign className="h-8 w-8 text-green-600" />
@@ -238,7 +248,7 @@ export const Personal = () => {
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className="text-sm font-medium text-gray-900">${user.amount}</div>
+                        <div className="text-sm font-medium text-gray-900">{`${user.amount} SOL`}</div>
                         <div className="text-xs text-gray-500">{user.date}</div>
                       </div>
                     </div>
@@ -255,7 +265,7 @@ export const Personal = () => {
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-semibold text-gray-900">내 모델</h2>
               <button
-                onClick={() => setShowUploadModal(true)}
+                onClick={handleUploadClick}
                 className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
               >
                 <Plus className="h-4 w-4" />
@@ -295,7 +305,7 @@ export const Personal = () => {
                         </span>
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-900">{model.sales}</td>
-                      <td className="px-6 py-4 text-sm font-medium text-gray-900">${model.revenue}</td>
+                      <td className="px-6 py-4 text-sm font-medium text-gray-900">{`${model.revenue} SOL`}</td>
                       <td className="px-6 py-4">
                         <div className="flex items-center space-x-1">
                           <Star className="h-4 w-4 text-yellow-400 fill-current" />
@@ -326,7 +336,7 @@ export const Personal = () => {
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-semibold text-gray-900">내 데이터셋</h2>
               <button
-                onClick={() => setShowUploadModal(true)}
+                onClick={handleUploadClick}
                 className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
               >
                 <Plus className="h-4 w-4" />
@@ -366,7 +376,7 @@ export const Personal = () => {
                         </span>
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-900">{dataset.sales}</td>
-                      <td className="px-6 py-4 text-sm font-medium text-gray-900">${dataset.revenue}</td>
+                      <td className="px-6 py-4 text-sm font-medium text-gray-900">{`${dataset.revenue} SOL`}</td>
                       <td className="px-6 py-4">
                         <div className="flex items-center space-x-1">
                           <Star className="h-4 w-4 text-yellow-400 fill-current" />

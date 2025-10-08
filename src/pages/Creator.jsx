@@ -205,7 +205,7 @@ export const Creator = () => {
                         <div className="flex-1">
                           <div className="font-medium text-gray-900">{plan.name}</div>
                           <div className="text-sm text-gray-600">
-                            {plan.price === 0 ? '무료' : `$${plan.price} USDC`}
+                            {plan.price === 0 ? '무료' : `${plan.price} SOL`}
                           </div>
                         </div>
                       </label>

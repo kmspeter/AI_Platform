@@ -93,7 +93,7 @@ export const FilterBar = ({
               })}
               className="w-24 accent-blue-600"
             />
-            <span className="text-xs text-gray-600 min-w-[60px]">~${filters.priceRange[1]}</span>
+            <span className="text-xs text-gray-600 min-w-[60px]">~{filters.priceRange[1]} SOL</span>
           </div>
         </div>
 
