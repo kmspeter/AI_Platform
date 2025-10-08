@@ -114,7 +114,7 @@ const apiService = {
         pricing: {
           type: defaultPlan.price > 0 ? 'paid' : 'free',
           amount: defaultPlan.price,
-          currency: 'USD',
+          currency: 'SOL',
           billingType: defaultPlan.billingType,
           planId: defaultPlan.id,
           planName: defaultPlan.name
@@ -144,7 +144,7 @@ const apiService = {
         creator: 'Unknown',
         modality: 'text',
         license: 'unknown',
-        pricing: { type: 'free', amount: 0, currency: 'USDC' },
+        pricing: { type: 'free', amount: 0, currency: 'SOL' },
         metrics: {},
         downloads: 0,
         tags: [],

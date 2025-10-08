@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Upload, RefreshCcw, Loader2, Plus, AlertTriangle, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { resolveApiUrl, resolveIpfsUrl } from '../config/api';
+import { useAuth } from '@/contexts';
 
 const modalityOptions = [
   { value: 'LLM', label: 'LLM (언어모델)' },
@@ -117,6 +118,7 @@ export const ModelRegister = () => {
   const navigate = useNavigate();
   const API_BASE = resolveApiUrl('/api');
   const modelFileInputRef = useRef(null);
+  const { user } = useAuth();
 
   const [modelFile, setModelFile] = useState(null);
   const [modelStatus, setModelStatus] = useState('');
@@ -424,6 +426,7 @@ export const ModelRegister = () => {
       license: modelForm.license,
       pricing,
       parentModelId: modelForm.parentModelId,
+      walletAddress: user?.wallet?.address ?? null,
     };
 
     if (modelForm.releaseDate) payload.releaseDate = modelForm.releaseDate;
@@ -435,7 +438,7 @@ export const ModelRegister = () => {
     if (Object.keys(sample).length) payload.sample = sample;
 
     return payload;
-  }, [activePlans, metricsValues, modelForm, technicalSpecFields, requiredMetricKeys]);
+  }, [activePlans, metricsValues, modelForm, technicalSpecFields, requiredMetricKeys, user?.wallet?.address]);
 
   const validateBeforeSubmit = () => {
     if (!modelForm.parentModelId) return '부모 모델을 선택해 주세요.';
@@ -964,7 +967,7 @@ export const ModelRegister = () => {
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">가격 (USD){plan === 'research' && ' - 0 고정'}</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">가격 (SOL){plan === 'research' && ' - 0 고정'}</label>
                     <input
                       type="number"
                       value={plan === 'research' ? 0 : modelForm.pricing[plan].price}

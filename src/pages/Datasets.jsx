@@ -24,7 +24,7 @@ export const Datasets = () => {
       license: '상업용',
       size: '2.5GB',
       samples: 150000,
-      pricing: { type: 'paid', amount: 50, currency: 'USDC' },
+      pricing: { type: 'paid', amount: 50, currency: 'SOL' },
       rating: 4.8,
       downloads: 1250,
       thumbnail: 'https://images.pexels.com/photos/8386440/pexels-photo-8386440.jpeg?auto=compress&cs=tinysrgb&w=300',
@@ -41,7 +41,7 @@ export const Datasets = () => {
       license: '연구용',
       size: '15GB',
       samples: 50000,
-      pricing: { type: 'paid', amount: 200, currency: 'USDC' },
+      pricing: { type: 'paid', amount: 200, currency: 'SOL' },
       rating: 4.9,
       downloads: 850,
       thumbnail: 'https://images.pexels.com/photos/6153354/pexels-photo-6153354.jpeg?auto=compress&cs=tinysrgb&w=300',
@@ -75,7 +75,7 @@ export const Datasets = () => {
       license: '상업용',
       size: '1.8GB',
       samples: 80000,
-      pricing: { type: 'paid', amount: 75, currency: 'USDC' },
+      pricing: { type: 'paid', amount: 75, currency: 'SOL' },
       rating: 4.7,
       downloads: 650,
       thumbnail: 'https://images.pexels.com/photos/8867434/pexels-photo-8867434.jpeg?auto=compress&cs=tinysrgb&w=300',
@@ -313,7 +313,7 @@ export const Datasets = () => {
                       <span className="font-semibold text-green-600">무료</span>
                     ) : (
                       <span className="font-semibold text-gray-900">
-                        ${dataset.pricing.amount} {dataset.pricing.currency}
+                        {`${dataset.pricing.amount} SOL`}
                       </span>
                     )}
                   </div>

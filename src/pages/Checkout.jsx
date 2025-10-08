@@ -222,7 +222,7 @@ export const Checkout = () => {
         planId: selectedPlan.id,
         planName: selectedPlan.name,
         amount: totalAmount,
-        currency: 'USDC',
+        currency: 'SOL',
         subtotal: planPrice,
         fees: {
           platform: platformFee,
@@ -360,16 +360,16 @@ export const Checkout = () => {
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-gray-600">라이선스 비용</span>
                   <span className="text-sm font-medium">
-                    {planPrice === 0 ? '무료' : `$${planPrice} USDC`}
+                    {planPrice === 0 ? '무료' : `${planPrice} SOL`}
                   </span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-gray-600">플랫폼 수수료</span>
-                  <span className="text-sm font-medium">${platformFee.toFixed(2)} USDC</span>
+                  <span className="text-sm font-medium">{platformFee.toFixed(2)} SOL</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-gray-600">네트워크 수수료</span>
-                  <span className="text-sm font-medium">~${networkFeeEstimate.toFixed(2)}</span>
+                  <span className="text-sm font-medium">~{networkFeeEstimate.toFixed(2)} SOL</span>
                 </div>
               </div>
 
@@ -377,7 +377,7 @@ export const Checkout = () => {
                 <div className="flex justify-between items-center">
                   <span className="font-semibold text-gray-900">총액</span>
                   <span className="font-bold text-xl text-gray-900">
-                    ${totalAmount.toFixed(2)} USDC
+                    {totalAmount.toFixed(2)} SOL
                   </span>
                 </div>
               </div>
@@ -615,7 +615,7 @@ export const Checkout = () => {
                           </div>
                           <div className="flex justify-between">
                             <span>금액:</span>
-                            <span className="font-medium">${totalAmount.toFixed(2)} USDC</span>
+                            <span className="font-medium">{totalAmount.toFixed(2)} SOL</span>
                           </div>
                           <div className="flex justify-between">
                             <span>네트워크:</span>

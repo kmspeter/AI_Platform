@@ -90,7 +90,7 @@ export const ModelCard = ({
             <span className="font-semibold text-green-600">무료</span>
           ) : (
             <span className="font-semibold text-gray-900">
-              ${model.pricing.amount} {model.pricing.currency}
+              {`${model.pricing.amount} SOL`}
             </span>
           )}
         </div>

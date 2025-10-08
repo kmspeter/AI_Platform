@@ -78,7 +78,7 @@ export const ComparisonOverlay = ({ models, onClose, onRemove }) => {
               {models.map(model => (
                 <div key={`${model.id}-price`} className="py-3">
                   <div className="text-sm font-semibold text-gray-900">
-                    {model.pricing.type === 'free' ? '무료' : `$${model.pricing.amount} ${model.pricing.currency}`}
+                    {model.pricing.type === 'free' ? '무료' : `${model.pricing.amount} SOL`}
                   </div>
                   <div className="text-xs text-gray-600">{model.license}</div>
                 </div>

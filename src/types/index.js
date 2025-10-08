@@ -17,7 +17,6 @@ export const PricingType = {
 };
 
 export const Currency = {
-  USDC: 'USDC',
   SOL: 'SOL'
 };
 
