@@ -193,3 +193,124 @@ export const mockAuditEvents = [
     txHash: null
   }
 ];
+
+export const generateBillingData = (period, modelFilter = 'all') => {
+  const periods = {
+    '7d': { days: 7, multiplier: 1 },
+    '30d': { days: 30, multiplier: 1.5 },
+    '90d': { days: 90, multiplier: 2.2 },
+    '1y': { days: 365, multiplier: 3.5 }
+  };
+
+  const modelMultipliers = {
+    'all': { tokens: 1600000, cost: 564, latency: 1.5, error: 0.5 },
+    'gpt-4-turbo': { tokens: 800000, cost: 320, latency: 1.2, error: 0.3 },
+    'claude-3-opus': { tokens: 450000, cost: 168, latency: 1.4, error: 0.4 },
+    'dall-e-3': { tokens: 200000, cost: 125, latency: 2.1, error: 0.6 },
+    'llama-2': { tokens: 150000, cost: 0, latency: 0.9, error: 0.2 }
+  };
+
+  const config = periods[period] || periods['30d'];
+  const modelConfig = modelMultipliers[modelFilter] || modelMultipliers['all'];
+  const baseTokens = modelConfig.tokens;
+  const baseCost = modelConfig.cost;
+  const baseLatency = modelConfig.latency;
+  const baseErrorRate = modelConfig.error;
+
+  return {
+    kpiData: [
+      {
+        title: '토큰 사용량',
+        value: `${(baseTokens * config.multiplier / 1000000).toFixed(1)}M`,
+        change: `+${Math.floor(8 + config.multiplier * 3)}%`,
+        icon: 'TrendingUp',
+        color: 'text-blue-600'
+      },
+      {
+        title: '총 비용',
+        value: `$${(baseCost * config.multiplier).toFixed(2)}`,
+        change: `+${Math.floor(5 + config.multiplier * 2)}%`,
+        icon: 'DollarSign',
+        color: 'text-green-600'
+      },
+      {
+        title: 'P95 지연시간',
+        value: `${(baseLatency / config.multiplier).toFixed(1)}s`,
+        change: `-${Math.floor(3 + config.multiplier)}%`,
+        icon: 'Clock',
+        color: 'text-purple-600'
+      },
+      {
+        title: '오류율',
+        value: `${(baseErrorRate / config.multiplier).toFixed(2)}%`,
+        change: `-${Math.floor(10 + config.multiplier * 2)}%`,
+        icon: 'AlertTriangle',
+        color: 'text-red-600'
+      }
+    ],
+    chartData: generateChartData(config.days, config.multiplier, modelFilter),
+    invoices: generateInvoices(period, config.multiplier)
+  };
+};
+
+const generateChartData = (days, multiplier, modelFilter = 'all') => {
+  const data = [];
+  const modelBaseValues = {
+    'all': 50000,
+    'gpt-4-turbo': 30000,
+    'claude-3-opus': 18000,
+    'dall-e-3': 8000,
+    'llama-2': 6000
+  };
+  const baseValue = (modelBaseValues[modelFilter] || modelBaseValues['all']) * multiplier;
+  const now = new Date();
+
+  for (let i = days - 1; i >= 0; i--) {
+    const date = new Date(now);
+    date.setDate(date.getDate() - i);
+
+    const variation = Math.sin(i / 5) * 0.3 + Math.random() * 0.2;
+    const tokens = Math.floor(baseValue * (1 + variation));
+    const cost = tokens * 0.00002;
+
+    data.push({
+      date: date.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' }),
+      tokens: tokens,
+      cost: parseFloat(cost.toFixed(2)),
+      requests: Math.floor(tokens / 1000)
+    });
+  }
+
+  return data;
+};
+
+const generateInvoices = (period, multiplier) => {
+  const invoiceCount = {
+    '7d': 2,
+    '30d': 4,
+    '90d': 8,
+    '1y': 12
+  }[period] || 4;
+
+  const invoices = [];
+  const now = new Date();
+  const baseAmount = 150;
+
+  for (let i = 0; i < invoiceCount; i++) {
+    const date = new Date(now);
+    date.setDate(date.getDate() - (i * Math.floor(365 / invoiceCount)));
+
+    const amount = baseAmount * multiplier * (0.8 + Math.random() * 0.4);
+    const isCompleted = i > 0;
+
+    invoices.push({
+      id: `INV-2024-${String(invoiceCount - i).padStart(3, '0')}`,
+      date: date.toLocaleDateString('ko-KR'),
+      amount: `$${amount.toFixed(2)}`,
+      status: isCompleted ? '완료' : '대기중',
+      txHash: isCompleted ? `0x${Math.random().toString(36).substring(2, 10)}...` : null
+    });
+  }
+
+  return invoices;
+};
