@@ -124,7 +124,9 @@ export const ModelRegister = () => {
   const [modelStatus, setModelStatus] = useState('');
 
   // 썸네일 업로드 상태
-  const [thumbUploadStatus, setThumbUploadStatus] = useState('');
+  const [thumbnailFile, setThumbnailFile] = useState(null);
+  const [thumbnailPreview, setThumbnailPreview] = useState('');
+  const [thumbnailError, setThumbnailError] = useState('');
 
   const [modelForm, setModelForm] = useState({
     name: '',
@@ -168,7 +170,9 @@ export const ModelRegister = () => {
   };
   const [metricsValues, setMetricsValues] = useState(makeEmptyMetrics('LLM'));
 
-  const [sampleUploadStatus, setSampleUploadStatus] = useState({});
+  const [sampleFiles, setSampleFiles] = useState({});
+  const [samplePreviews, setSamplePreviews] = useState({});
+  const [sampleErrors, setSampleErrors] = useState({});
   const [existingModels, setExistingModels] = useState([]);
   const [modelsLoading, setModelsLoading] = useState(false);
   const [modelsError, setModelsError] = useState('');
@@ -194,51 +198,6 @@ export const ModelRegister = () => {
     setModelStatus(file ? '' : '');
   };
 
-  // 공통 업로드 유틸: 샘플/썸네일 업로드에 사용
-  const uploadToServer = async (file, setStatus) => {
-    if (!file) return null;
-    if (file.size > 100 * 1024 * 1024) {
-      setStatus && setStatus('⌧ 파일 크기는 100MB를 초과할 수 없습니다.');
-      return null;
-    }
-    setStatus && setStatus('업로드 중…');
-
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-
-      const res = await fetch(`${API_BASE}/upload`, {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!res.ok) {
-        const text = await res.text().catch(() => '');
-        throw new Error(text || res.statusText || 'Upload failed');
-      }
-
-      const data = await res.json();
-      if (!data?.success) {
-        throw new Error(data?.error || 'Upload failed');
-      }
-
-      const { ipfsHash, metadataHash, encryptionKey, gateway } = data.data || {};
-      const msg = [
-        '✅ 업로드 완료!',
-        `IPFS Hash: ${ipfsHash}`,
-        `Metadata: ${metadataHash}`,
-        `Key: ${encryptionKey}`,
-        `Gateway: ${gateway}`,
-      ].join('\n');
-
-      setStatus && setStatus(msg);
-      return gateway || ipfsHash || null;
-    } catch (err) {
-      setStatus && setStatus(`⌧ 실패: ${err.message}`);
-      return null;
-    }
-  };
-
   const updateModelForm = (field, value) => {
     setModelForm((prev) => ({ ...prev, [field]: value }));
   };
@@ -253,13 +212,36 @@ export const ModelRegister = () => {
     }));
   };
 
-  // 썸네일 업로드 핸들러
-  const handleThumbnailFileChange = async (e) => {
+  // 썸네일 파일 선택 핸들러
+  const handleThumbnailFileChange = (e) => {
     const file = e.target.files?.[0];
-    const url = await uploadToServer(file, setThumbUploadStatus);
-    if (url) {
-      setModelForm((prev) => ({ ...prev, thumbnail: url }));
+    if (!file) {
+      setThumbnailFile(null);
+      setThumbnailPreview('');
+      setThumbnailError('');
+      return;
     }
+
+    if (file.size > 100 * 1024 * 1024) {
+      setThumbnailError('⌧ 파일 크기는 100MB를 초과할 수 없습니다.');
+      return;
+    }
+
+    setThumbnailError('');
+    setThumbnailFile(file);
+    setModelForm((prev) => ({ ...prev, thumbnail: '' }));
+
+    setThumbnailPreview((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return URL.createObjectURL(file);
+    });
+  };
+
+  const clearThumbnailFile = () => {
+    if (thumbnailPreview) URL.revokeObjectURL(thumbnailPreview);
+    setThumbnailPreview('');
+    setThumbnailFile(null);
+    setThumbnailError('');
   };
 
   const updateTechnicalSpecs = (field, value) => {
@@ -276,11 +258,59 @@ export const ModelRegister = () => {
     }));
   };
 
-  // 샘플 파일 업로드 핸들러 (이미지/오디오)
-  const handleSampleFileChange = async (field, file) => {
-    setSampleUploadStatus((s) => ({ ...s, [field]: '업로드 준비 중…' }));
-    const url = await uploadToServer(file, (m) => setSampleUploadStatus((s) => ({ ...s, [field]: m })));
-    if (url) updateSampleData(field, url);
+  // 샘플 파일 선택 핸들러 (이미지/오디오)
+  const handleSampleFileChange = (field, file) => {
+    if (!file) {
+      setSampleFiles((prev) => {
+        const next = { ...prev };
+        delete next[field];
+        return next;
+      });
+      setSamplePreviews((prev) => {
+        const next = { ...prev };
+        if (next[field]) {
+          URL.revokeObjectURL(next[field]);
+          delete next[field];
+        }
+        return next;
+      });
+      setSampleErrors((prev) => {
+        const next = { ...prev };
+        delete next[field];
+        return next;
+      });
+      updateSampleData(field, '');
+      return;
+    }
+
+    if (file.size > 100 * 1024 * 1024) {
+      setSampleErrors((prev) => ({ ...prev, [field]: '⌧ 파일 크기는 100MB를 초과할 수 없습니다.' }));
+      return;
+    }
+
+    setSampleErrors((prev) => {
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
+
+    setSampleFiles((prev) => ({ ...prev, [field]: file }));
+    setSamplePreviews((prev) => {
+      const next = { ...prev };
+      if (next[field]) URL.revokeObjectURL(next[field]);
+      let previewUrl = '';
+      if (file.type.startsWith('image/') || file.type.startsWith('audio/')) {
+        previewUrl = URL.createObjectURL(file);
+      }
+      if (previewUrl) next[field] = previewUrl;
+      else delete next[field];
+      return next;
+    });
+    updateSampleData(field, '');
+  };
+
+  const clearSampleFile = (field) => {
+    handleSampleFileChange(field, null);
   };
 
   // 라이선스 토글 규칙
@@ -330,6 +360,28 @@ export const ModelRegister = () => {
       };
     });
     setMetricsValues(makeEmptyMetrics(nextModality));
+    setSampleFiles((prev) => {
+      const allowed = new Set(SAMPLE_FIELDS_BY_MODALITY[nextModality] || []);
+      return Object.entries(prev).reduce((acc, [key, value]) => {
+        if (allowed.has(key)) acc[key] = value;
+        return acc;
+      }, {});
+    });
+    setSamplePreviews((prev) => {
+      const allowed = new Set(SAMPLE_FIELDS_BY_MODALITY[nextModality] || []);
+      return Object.entries(prev).reduce((acc, [key, value]) => {
+        if (allowed.has(key)) acc[key] = value;
+        else URL.revokeObjectURL(value);
+        return acc;
+      }, {});
+    });
+    setSampleErrors((prev) => {
+      const allowed = new Set(SAMPLE_FIELDS_BY_MODALITY[nextModality] || []);
+      return Object.entries(prev).reduce((acc, [key, value]) => {
+        if (allowed.has(key)) acc[key] = value;
+        return acc;
+      }, {});
+    });
   };
 
   const handleRightsChange = (plan, text) => {
@@ -363,6 +415,19 @@ export const ModelRegister = () => {
     loadExistingModels();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => () => {
+    if (thumbnailPreview) URL.revokeObjectURL(thumbnailPreview);
+  }, [thumbnailPreview]);
+
+  useEffect(
+    () => () => {
+      Object.values(samplePreviews).forEach((url) => {
+        if (url) URL.revokeObjectURL(url);
+      });
+    },
+    [samplePreviews]
+  );
 
   const activePlans = useMemo(() => {
     const set = new Set();
@@ -398,7 +463,10 @@ export const ModelRegister = () => {
       const raw = (metricsValues[k] ?? '').toString().trim();
       if (raw !== '') {
         const num = Number(raw);
-        metrics[k] = Number.isNaN(num) ? raw : num;
+        if (!Number.isNaN(num)) {
+          const clamped = Math.min(Math.max(num, 0), 100);
+          metrics[k] = clamped;
+        }
       }
     });
 
@@ -407,14 +475,29 @@ export const ModelRegister = () => {
       const value = modelForm.technicalSpecs[key];
       if (value !== '' && value !== undefined && value !== null) {
         const numeric = Number(value);
-        acc[key] = Number.isNaN(numeric) ? value : numeric;
+        if (!Number.isNaN(numeric)) {
+          acc[key] = numeric;
+        }
       }
       return acc;
     }, {});
 
     const sample = (SAMPLE_FIELDS_BY_MODALITY[modelForm.modality] || []).reduce((acc, key) => {
+      if (sampleFiles[key]) {
+        acc[key] = {
+          type: 'file',
+          field: `sample-${key}`,
+          fileName: sampleFiles[key].name,
+        };
+        return acc;
+      }
       const v = modelForm.sampleData[key];
-      if (v && v.toString().trim()) acc[key] = v;
+      if (typeof v === 'string') {
+        const trimmed = v.trim();
+        if (trimmed) acc[key] = trimmed;
+      } else if (v !== undefined && v !== null) {
+        acc[key] = v;
+      }
       return acc;
     }, {});
 
@@ -432,23 +515,36 @@ export const ModelRegister = () => {
     if (modelForm.releaseDate) payload.releaseDate = modelForm.releaseDate;
     if (modelForm.overview.trim()) payload.overview = modelForm.overview.trim();
     if (modelForm.releaseNotes && modelForm.releaseNotes.trim()) payload.releaseNotes = modelForm.releaseNotes.trim(); // 🔹 릴리스 노트 포함
-    if (modelForm.thumbnail && modelForm.thumbnail.trim()) payload.thumbnail = modelForm.thumbnail.trim();           // 🔹 썸네일 URL 포함
+    if (thumbnailFile) {
+      payload.thumbnail = {
+        type: 'file',
+        field: 'thumbnail',
+        fileName: thumbnailFile.name,
+      };
+    } else if (modelForm.thumbnail && modelForm.thumbnail.trim()) {
+      payload.thumbnail = modelForm.thumbnail.trim();
+    }
     if (Object.keys(metrics).length) payload.metrics = metrics;
     if (Object.keys(technicalSpecs).length) payload.technicalSpecs = technicalSpecs;
     if (Object.keys(sample).length) payload.sample = sample;
 
     return payload;
-  }, [activePlans, metricsValues, modelForm, technicalSpecFields, requiredMetricKeys, user?.wallet?.address]);
+  }, [activePlans, metricsValues, modelForm, technicalSpecFields, requiredMetricKeys, sampleFiles, thumbnailFile, user?.wallet?.address]);
 
   const validateBeforeSubmit = () => {
     if (!modelForm.parentModelId) return '부모 모델을 선택해 주세요.';
     for (const k of requiredMetricKeys) {
       const v = (metricsValues[k] ?? '').toString().trim();
       if (!v) return `성능 메트릭 "${k}" 값을 입력해 주세요.`;
+      const num = Number(v);
+      if (Number.isNaN(num) || num < 0 || num > 100) return `성능 메트릭 "${k}" 값은 0~100 사이의 숫자여야 합니다.`;
     }
     if (!activePlans.length) return '라이선스를 선택해 활성화할 플랜이 필요합니다.';
     if (modelForm.license.includes('open-source') && modelForm.license.length > 1)
       return '오픈소스는 단독 선택만 가능합니다.';
+    if (thumbnailError) return thumbnailError;
+    const sampleError = Object.values(sampleErrors).find((msg) => msg);
+    if (sampleError) return sampleError;
     if (!modelFile) return '모델 파일을 선택해 주세요.';
     if (modelFile.size > 1024 * 1024 * 1024 * 4) return '모델 파일은 4GB를 초과할 수 없습니다.'; // 방어적 제한
     return '';
@@ -492,6 +588,14 @@ export const ModelRegister = () => {
     const formData = new FormData();
     formData.append('model', modelFile, modelFile.name);
     formData.append('metadata', new Blob([JSON.stringify(modelJson)], { type: 'application/json' }));
+    if (thumbnailFile) {
+      formData.append('thumbnail', thumbnailFile, thumbnailFile.name);
+    }
+    Object.entries(sampleFiles).forEach(([field, file]) => {
+      if (file) {
+        formData.append(`sample-${field}`, file, file.name);
+      }
+    });
 
     setIsSubmitting(true);
     appendLog('IPFS 노드 서버로 업로드를 시작합니다…');
@@ -563,19 +667,23 @@ export const ModelRegister = () => {
         return (
           <>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">컨텍스트 윈도우</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">컨텍스트 윈도우 (토큰)</label>
               <input
-                type="text"
+                type="number"
+                min="0"
+                step="1"
                 value={modelForm.technicalSpecs.contextWindow || ''}
                 onChange={(e) => updateTechnicalSpecs('contextWindow', e.target.value)}
                 className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                placeholder="예: 128k"
+                placeholder="예: 128000"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">최대 출력 토큰</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">최대 출력 토큰 (토큰)</label>
               <input
                 type="number"
+                min="0"
+                step="1"
                 value={modelForm.technicalSpecs.maxOutputTokens || ''}
                 onChange={(e) => updateTechnicalSpecs('maxOutputTokens', e.target.value)}
                 className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
@@ -588,9 +696,11 @@ export const ModelRegister = () => {
         return (
           <>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">프롬프트 토큰 제한</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">프롬프트 토큰 제한 (토큰)</label>
               <input
                 type="number"
+                min="0"
+                step="1"
                 value={modelForm.technicalSpecs.promptTokens || ''}
                 onChange={(e) => updateTechnicalSpecs('promptTokens', e.target.value)}
                 className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
@@ -598,13 +708,15 @@ export const ModelRegister = () => {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">최대 출력 해상도</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">최대 출력 해상도 (px)</label>
               <input
-                type="text"
+                type="number"
+                min="0"
+                step="1"
                 value={modelForm.technicalSpecs.maxOutputResolution || ''}
                 onChange={(e) => updateTechnicalSpecs('maxOutputResolution', e.target.value)}
                 className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                placeholder="예: 2048×2048"
+                placeholder="예: 2048"
               />
             </div>
           </>
@@ -613,33 +725,39 @@ export const ModelRegister = () => {
         return (
           <>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">최대 오디오 입력</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">최대 오디오 입력 (분)</label>
               <input
-                type="text"
+                type="number"
+                min="0"
+                step="0.1"
                 value={modelForm.technicalSpecs.maxAudioInput || ''}
                 onChange={(e) => updateTechnicalSpecs('maxAudioInput', e.target.value)}
                 className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                placeholder="예: 30분"
+                placeholder="예: 30"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">최대 오디오 출력</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">최대 오디오 출력 (분)</label>
               <input
-                type="text"
+                type="number"
+                min="0"
+                step="0.1"
                 value={modelForm.technicalSpecs.maxAudioOutput || ''}
                 onChange={(e) => updateTechnicalSpecs('maxAudioOutput', e.target.value)}
                 className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                placeholder="예: 5분"
+                placeholder="예: 5"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">샘플레이트</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">샘플레이트 (kHz)</label>
               <input
-                type="text"
+                type="number"
+                min="0"
+                step="0.1"
                 value={modelForm.technicalSpecs.sampleRate || ''}
                 onChange={(e) => updateTechnicalSpecs('sampleRate', e.target.value)}
                 className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                placeholder="예: 16-48 kHz"
+                placeholder="예: 48"
               />
             </div>
           </>
@@ -648,19 +766,23 @@ export const ModelRegister = () => {
         return (
           <>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">텍스트 토큰 제한</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">텍스트 토큰 제한 (토큰)</label>
               <input
-                type="text"
+                type="number"
+                min="0"
+                step="1"
                 value={modelForm.technicalSpecs.textTokens || ''}
                 onChange={(e) => updateTechnicalSpecs('textTokens', e.target.value)}
                 className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                placeholder="예: 4k"
+                placeholder="예: 4000"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">최대 이미지 수</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">최대 이미지 수 (장)</label>
               <input
                 type="number"
+                min="0"
+                step="1"
                 value={modelForm.technicalSpecs.maxImages || ''}
                 onChange={(e) => updateTechnicalSpecs('maxImages', e.target.value)}
                 className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
@@ -668,13 +790,15 @@ export const ModelRegister = () => {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">최대 이미지 해상도</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">최대 이미지 해상도 (px)</label>
               <input
-                type="text"
+                type="number"
+                min="0"
+                step="1"
                 value={modelForm.technicalSpecs.maxImageResolution || ''}
                 onChange={(e) => updateTechnicalSpecs('maxImageResolution', e.target.value)}
                 className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                placeholder="예: 2048×2048"
+                placeholder="예: 2048"
               />
             </div>
           </>
@@ -694,12 +818,25 @@ export const ModelRegister = () => {
             </div>
             <div className="md:col-span-3">
               <input
-                type="text"
+                type="number"
+                min="0"
+                max="100"
+                step="0.01"
                 required
                 value={metricsValues[k]}
-                onChange={(e) => setMetricsValues((prev) => ({ ...prev, [k]: e.target.value }))}
+                onChange={(e) => {
+                  const { value } = e.target;
+                  if (value === '') {
+                    setMetricsValues((prev) => ({ ...prev, [k]: '' }));
+                    return;
+                  }
+                  const num = Number(value);
+                  if (Number.isNaN(num)) return;
+                  const clamped = Math.min(Math.max(num, 0), 100);
+                  setMetricsValues((prev) => ({ ...prev, [k]: clamped.toString() }));
+                }}
                 className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                placeholder={`값 입력 (예: ${k === 'MMLU' ? '87' : ''})`}
+                placeholder={`0~100 (예: ${k === 'MMLU' ? '87' : '92.5'})`}
               />
             </div>
           </div>
@@ -737,15 +874,28 @@ export const ModelRegister = () => {
                       accept={isImage ? 'image/*' : isAudio ? 'audio/*' : '*'}
                       onChange={(e) => {
                         const file = e.target.files?.[0];
-                        if (file) handleSampleFileChange(field, file);
+                        handleSampleFileChange(field, file || null);
                       }}
                       className="block w-full text-sm text-gray-700 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
                     />
-                    {sampleUploadStatus[field] && (
-                      <pre className="text-xs whitespace-pre-wrap text-gray-700 bg-gray-50 p-2 rounded">{sampleUploadStatus[field]}</pre>
-                    )}
-                    {modelForm.sampleData[field] && (
-                      <a href={modelForm.sampleData[field]} target="_blank" rel="noreferrer" className="text-blue-600 text-sm underline">업로드된 파일 열기</a>
+                    {sampleErrors[field] && <p className="text-xs text-red-600">{sampleErrors[field]}</p>}
+                    {sampleFiles[field] && (
+                      <div className="space-y-2">
+                        {samplePreviews[field] && isImage && (
+                          <img src={samplePreviews[field]} alt={`${field} preview`} className="h-28 w-auto rounded border border-gray-200" />
+                        )}
+                        {samplePreviews[field] && isAudio && (
+                          <audio controls src={samplePreviews[field]} className="w-full" />
+                        )}
+                        <div className="text-xs text-gray-600 break-all">{sampleFiles[field].name}</div>
+                        <button
+                          type="button"
+                          onClick={() => clearSampleFile(field)}
+                          className="inline-flex items-center px-2 py-1 text-xs text-gray-600 bg-gray-100 rounded hover:bg-gray-200"
+                        >
+                          파일 제거
+                        </button>
+                      </div>
                     )}
                   </div>
                 ) : (
@@ -924,19 +1074,24 @@ export const ModelRegister = () => {
                 onChange={handleThumbnailFileChange}
                 className="block w-full text-sm text-gray-700 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
               />
-              {thumbUploadStatus && (
-                <pre className="text-xs whitespace-pre-wrap text-gray-700 bg-gray-50 p-2 rounded mt-2">
-                  {thumbUploadStatus}
-                </pre>
-              )}
-              {modelForm.thumbnail && (
-                <div className="mt-3">
-                  <img
-                    src={modelForm.thumbnail}
-                    alt="thumbnail preview"
-                    className="h-28 w-auto rounded border border-gray-200"
-                  />
-                  <div className="text-xs text-gray-600 mt-1 break-all">{modelForm.thumbnail}</div>
+              {thumbnailError && <p className="text-xs text-red-600 mt-2">{thumbnailError}</p>}
+              {thumbnailFile && (
+                <div className="mt-3 space-y-2">
+                  {thumbnailPreview && (
+                    <img
+                      src={thumbnailPreview}
+                      alt="thumbnail preview"
+                      className="h-28 w-auto rounded border border-gray-200"
+                    />
+                  )}
+                  <div className="text-xs text-gray-600 break-all">{thumbnailFile.name}</div>
+                  <button
+                    type="button"
+                    onClick={clearThumbnailFile}
+                    className="inline-flex items-center px-2 py-1 text-xs text-gray-600 bg-gray-100 rounded hover:bg-gray-200"
+                  >
+                    파일 제거
+                  </button>
                 </div>
               )}
             </div>
