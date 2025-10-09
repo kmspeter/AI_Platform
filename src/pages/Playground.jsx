@@ -1,6 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, Settings, Copy, Play, Trash2, RefreshCw } from 'lucide-react';
 
+// 배포용 API 엔드포인트 (ngrok 또는 고정 도메인)
+const API_BASE = 'https://3af0d76d5950.ngrok-free.app';
+
 export const Playground = () => {
   const [messages, setMessages] = useState([]);
   const [prompt, setPrompt] = useState('');
@@ -63,7 +66,6 @@ export const Playground = () => {
 
     const userMessage = { role: 'user', content: prompt, timestamp: new Date() };
     setMessages(prev => [...prev, userMessage]);
-    const currentPrompt = prompt;
     setPrompt('');
     setLoading(true);
 
@@ -78,7 +80,7 @@ export const Playground = () => {
         user_id: 'playground-user'
       };
 
-      const response = await fetch('http://localhost:8000/api/chat/completions', {
+      const response = await fetch(`${API_BASE}/api/chat/completions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -138,8 +140,8 @@ export const Playground = () => {
   };
 
   const exportToCurl = () => {
-    const curlCommand = `curl -X POST "http://localhost:8000/api/chat/completions" \\
-  -H "Content-Type: application/json" \\
+    const curlCommand = `curl -X POST "${API_BASE}/api/chat/completions" \
+  -H "Content-Type: application/json" \
   -d '{
     "model": "${model}",
     "messages": [
@@ -157,7 +159,7 @@ export const Playground = () => {
   };
 
   const exportToJavaScript = () => {
-    const jsCode = `const response = await fetch('http://localhost:8000/api/chat/completions', {
+    const jsCode = `const response = await fetch('${API_BASE}/api/chat/completions', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
@@ -186,7 +188,7 @@ console.log(data.content);`;
     const pyCode = `import requests
 
 response = requests.post(
-    'http://localhost:8000/api/chat/completions',
+    '${API_BASE}/api/chat/completions',
     headers={'Content-Type': 'application/json'},
     json={
         'model': '${model}',
