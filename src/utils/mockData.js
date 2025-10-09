@@ -314,3 +314,26 @@ const generateInvoices = (period, multiplier) => {
 
   return invoices;
 };
+
+export const generateMonthlyRevenueData = () => {
+  const months = ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월'];
+  const currentMonth = new Date().getMonth();
+  const data = [];
+
+  for (let i = 0; i < 12; i++) {
+    const monthIndex = (currentMonth - 11 + i + 12) % 12;
+    const baseRevenue = 3000;
+    const growth = i * 300;
+    const variation = Math.sin(i / 2) * 800 + Math.random() * 500;
+    const revenue = Math.max(0, baseRevenue + growth + variation);
+
+    data.push({
+      month: months[monthIndex],
+      revenue: parseFloat(revenue.toFixed(2)),
+      sales: Math.floor(revenue / 50),
+      downloads: Math.floor(revenue / 20)
+    });
+  }
+
+  return data;
+};

@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import {
   Plus,
   Bot,
@@ -17,6 +17,8 @@ import {
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { generateMonthlyRevenueData } from '../utils/mockData';
 
 export const Personal = () => {
   const [activeTab, setActiveTab] = useState('overview');
@@ -24,6 +26,7 @@ export const Personal = () => {
   const [formStep, setFormStep] = useState(1); // 1: 타입선택, 2: 데이터셋폼
   const navigate = useNavigate();
   const { user } = useAuth();
+  const monthlyRevenueData = useMemo(() => generateMonthlyRevenueData(), []);
 
   // 데이터셋 업로드 관련 상태 (향후 확장용)
   const datasetFileInputRef = useRef(null);
@@ -227,8 +230,37 @@ export const Personal = () => {
               {/* Revenue Chart */}
               <div className="bg-white rounded-xl border border-gray-200 p-6">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">월별 수익</h3>
-                <div className="h-64 bg-gray-50 rounded-lg flex items-center justify-center">
-                  <p className="text-gray-500">수익 차트 (Recharts 구현 예정)</p>
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={monthlyRevenueData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+                      <XAxis
+                        dataKey="month"
+                        stroke="#9CA3AF"
+                        style={{ fontSize: '12px' }}
+                        tickMargin={8}
+                      />
+                      <YAxis
+                        stroke="#9CA3AF"
+                        style={{ fontSize: '12px' }}
+                        tickFormatter={(value) => `${(value / 1000).toFixed(0)}K`}
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: '#ffffff',
+                          border: '1px solid #E5E7EB',
+                          borderRadius: '8px',
+                          padding: '12px'
+                        }}
+                        formatter={(value) => [`${value.toLocaleString()} SOL`, '수익']}
+                      />
+                      <Bar
+                        dataKey="revenue"
+                        fill="#10B981"
+                        radius={[4, 4, 0, 0]}
+                      />
+                    </BarChart>
+                  </ResponsiveContainer>
                 </div>
               </div>
 
