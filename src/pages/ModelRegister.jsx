@@ -78,6 +78,64 @@ const TECHNICAL_SPEC_TEMPLATES = {
   multimodal: { textTokens: '', maxImages: '', maxImageResolution: '' },
 };
 
+const sanitizeIntegerString = (value) => {
+  if (value === null || value === undefined) return '';
+  return value.toString().replace(/[^0-9]/g, '');
+};
+
+const extractNumberWithSuffix = (value, suffix) => {
+  if (!value) return '';
+  const trimmed = value.toString().trim();
+  const lowerSuffix = suffix.toLowerCase();
+  const lowerValue = trimmed.toLowerCase();
+  const withoutSuffix = lowerValue.endsWith(lowerSuffix)
+    ? trimmed.slice(0, trimmed.length - suffix.length).trim()
+    : trimmed;
+  return sanitizeIntegerString(withoutSuffix);
+};
+
+const formatNumberWithSuffix = (value, suffix) => {
+  const sanitized = sanitizeIntegerString(value);
+  return sanitized ? `${sanitized}${suffix}` : '';
+};
+
+const extractResolutionParts = (value) => {
+  if (!value) return { first: '', second: '' };
+  const normalized = value.toString().replace(/[×]/g, 'x');
+  const matches = normalized.match(/\d+/g) || [];
+  return {
+    first: matches[0] || '',
+    second: matches[1] || '',
+  };
+};
+
+const formatResolutionValue = (first, second, separator = 'x') => {
+  const sanitizedFirst = sanitizeIntegerString(first);
+  const sanitizedSecond = sanitizeIntegerString(second);
+  if (sanitizedFirst && sanitizedSecond) return `${sanitizedFirst}${separator}${sanitizedSecond}`;
+  if (sanitizedFirst) return sanitizedFirst;
+  if (sanitizedSecond) return sanitizedSecond;
+  return '';
+};
+
+const extractRangeParts = (value) => {
+  if (!value) return { start: '', end: '' };
+  const matches = value.toString().match(/\d+/g) || [];
+  return {
+    start: matches[0] || '',
+    end: matches[1] || '',
+  };
+};
+
+const formatRangeWithUnit = (start, end, unit) => {
+  const sanitizedStart = sanitizeIntegerString(start);
+  const sanitizedEnd = sanitizeIntegerString(end);
+  if (sanitizedStart && sanitizedEnd) return `${sanitizedStart}-${sanitizedEnd} ${unit}`;
+  if (sanitizedStart) return `${sanitizedStart} ${unit}`;
+  if (sanitizedEnd) return `${sanitizedEnd} ${unit}`;
+  return '';
+};
+
 // 모달리티별 샘플 필드 (입출력 예시)
 const SAMPLE_FIELDS_BY_MODALITY = {
   LLM: ['prompt', 'output'],
@@ -742,20 +800,35 @@ export const ModelRegister = () => {
 
   const renderTechnicalSpecsFields = () => {
     switch (modelForm.modality) {
-      case 'LLM':
+      case 'LLM': {
+        const contextWindowValue = extractNumberWithSuffix(
+          modelForm.technicalSpecs.contextWindow,
+          'k'
+        );
         return (
           <>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                컨텍스트 윈도우 (문자열: 예 "128k")
+                컨텍스트 윈도우
               </label>
-              <input
-                type="text"  // 👈 문자열 입력 가능
-                value={modelForm.technicalSpecs.contextWindow || ''}
-                onChange={(e) => updateTechnicalSpecs('contextWindow', e.target.value)}
-                className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                placeholder="예: 128k"
-              />
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  inputMode="numeric"
+                  value={contextWindowValue}
+                  onChange={(e) =>
+                    updateTechnicalSpecs(
+                      'contextWindow',
+                      formatNumberWithSuffix(e.target.value, 'k')
+                    )
+                  }
+                  className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  placeholder="예: 128"
+                />
+                <span className="text-sm text-gray-500">k</span>
+              </div>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -773,7 +846,11 @@ export const ModelRegister = () => {
             </div>
           </>
         );
-      case 'image-generation':
+      }
+      case 'image-generation': {
+        const maxOutputResolutionParts = extractResolutionParts(
+          modelForm.technicalSpecs.maxOutputResolution
+        );
         return (
           <>
             <div>
@@ -792,73 +869,177 @@ export const ModelRegister = () => {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                최대 출력 해상도 (문자열: 예 "2048×2048")
+                최대 출력 해상도
               </label>
-              <input
-                type="text"  // 👈 문자열 입력 가능
-                value={modelForm.technicalSpecs.maxOutputResolution || ''}
-                onChange={(e) => updateTechnicalSpecs('maxOutputResolution', e.target.value)}
-                className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                placeholder="예: 2048×2048"
-              />
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  inputMode="numeric"
+                  value={maxOutputResolutionParts.first}
+                  onChange={(e) =>
+                    updateTechnicalSpecs(
+                      'maxOutputResolution',
+                      formatResolutionValue(e.target.value, maxOutputResolutionParts.second)
+                    )
+                  }
+                  className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  placeholder="예: 2048"
+                />
+                <span className="text-sm text-gray-500">×</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  inputMode="numeric"
+                  value={maxOutputResolutionParts.second}
+                  onChange={(e) =>
+                    updateTechnicalSpecs(
+                      'maxOutputResolution',
+                      formatResolutionValue(maxOutputResolutionParts.first, e.target.value)
+                    )
+                  }
+                  className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  placeholder="예: 2048"
+                />
+              </div>
             </div>
           </>
         );
-      case 'audio':
+      }
+      case 'audio': {
+        const maxAudioInputValue = extractNumberWithSuffix(
+          modelForm.technicalSpecs.maxAudioInput,
+          '분'
+        );
+        const maxAudioOutputValue = extractNumberWithSuffix(
+          modelForm.technicalSpecs.maxAudioOutput,
+          '분'
+        );
+        const sampleRateParts = extractRangeParts(modelForm.technicalSpecs.sampleRate);
         return (
           <>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                최대 오디오 입력 (문자열: 예 "30분")
+                최대 오디오 입력
               </label>
-              <input
-                type="text"  // 👈 문자열 입력 가능
-                value={modelForm.technicalSpecs.maxAudioInput || ''}
-                onChange={(e) => updateTechnicalSpecs('maxAudioInput', e.target.value)}
-                className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                placeholder="예: 30분"
-              />
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  inputMode="numeric"
+                  value={maxAudioInputValue}
+                  onChange={(e) =>
+                    updateTechnicalSpecs(
+                      'maxAudioInput',
+                      formatNumberWithSuffix(e.target.value, '분')
+                    )
+                  }
+                  className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  placeholder="예: 30"
+                />
+                <span className="text-sm text-gray-500">분</span>
+              </div>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                최대 오디오 출력 (문자열: 예 "5분")
+                최대 오디오 출력
               </label>
-              <input
-                type="text"
-                value={modelForm.technicalSpecs.maxAudioOutput || ''}
-                onChange={(e) => updateTechnicalSpecs('maxAudioOutput', e.target.value)}
-                className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                placeholder="예: 5분"
-              />
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  inputMode="numeric"
+                  value={maxAudioOutputValue}
+                  onChange={(e) =>
+                    updateTechnicalSpecs(
+                      'maxAudioOutput',
+                      formatNumberWithSuffix(e.target.value, '분')
+                    )
+                  }
+                  className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  placeholder="예: 5"
+                />
+                <span className="text-sm text-gray-500">분</span>
+              </div>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                샘플레이트 (문자열: 예 "16-48 kHz")
+                샘플레이트 범위
               </label>
-              <input
-                type="text"
-                value={modelForm.technicalSpecs.sampleRate || ''}
-                onChange={(e) => updateTechnicalSpecs('sampleRate', e.target.value)}
-                className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                placeholder="예: 16-48 kHz"
-              />
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  inputMode="numeric"
+                  value={sampleRateParts.start}
+                  onChange={(e) =>
+                    updateTechnicalSpecs(
+                      'sampleRate',
+                      formatRangeWithUnit(e.target.value, sampleRateParts.end, 'kHz')
+                    )
+                  }
+                  className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  placeholder="예: 16"
+                />
+                <span className="text-sm text-gray-500">-</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  inputMode="numeric"
+                  value={sampleRateParts.end}
+                  onChange={(e) =>
+                    updateTechnicalSpecs(
+                      'sampleRate',
+                      formatRangeWithUnit(sampleRateParts.start, e.target.value, 'kHz')
+                    )
+                  }
+                  className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  placeholder="예: 48"
+                />
+                <span className="text-sm text-gray-500">kHz</span>
+              </div>
             </div>
           </>
         );
-      case 'multimodal':
+      }
+      case 'multimodal': {
+        const textTokenValue = extractNumberWithSuffix(
+          modelForm.technicalSpecs.textTokens,
+          'k'
+        );
+        const maxImageResolutionParts = extractResolutionParts(
+          modelForm.technicalSpecs.maxImageResolution
+        );
         return (
           <>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                텍스트 토큰 제한 (문자열: 예 "4k")
+                텍스트 토큰 제한
               </label>
-              <input
-                type="text"  // 👈 문자열 입력 가능
-                value={modelForm.technicalSpecs.textTokens || ''}
-                onChange={(e) => updateTechnicalSpecs('textTokens', e.target.value)}
-                className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                placeholder="예: 4k"
-              />
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  inputMode="numeric"
+                  value={textTokenValue}
+                  onChange={(e) =>
+                    updateTechnicalSpecs(
+                      'textTokens',
+                      formatNumberWithSuffix(e.target.value, 'k')
+                    )
+                  }
+                  className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  placeholder="예: 4"
+                />
+                <span className="text-sm text-gray-500">k</span>
+              </div>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -876,18 +1057,45 @@ export const ModelRegister = () => {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                최대 이미지 해상도 (문자열: 예 "2048×2048")
+                최대 이미지 해상도
               </label>
-              <input
-                type="text"  // 👈 문자열 입력 가능
-                value={modelForm.technicalSpecs.maxImageResolution || ''}
-                onChange={(e) => updateTechnicalSpecs('maxImageResolution', e.target.value)}
-                className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                placeholder="예: 2048×2048"
-              />
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  inputMode="numeric"
+                  value={maxImageResolutionParts.first}
+                  onChange={(e) =>
+                    updateTechnicalSpecs(
+                      'maxImageResolution',
+                      formatResolutionValue(e.target.value, maxImageResolutionParts.second)
+                    )
+                  }
+                  className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  placeholder="예: 2048"
+                />
+                <span className="text-sm text-gray-500">×</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  inputMode="numeric"
+                  value={maxImageResolutionParts.second}
+                  onChange={(e) =>
+                    updateTechnicalSpecs(
+                      'maxImageResolution',
+                      formatResolutionValue(maxImageResolutionParts.first, e.target.value)
+                    )
+                  }
+                  className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  placeholder="예: 2048"
+                />
+              </div>
             </div>
           </>
         );
+      }
       default:
         return null;
     }
@@ -904,31 +1112,44 @@ export const ModelRegister = () => {
               <div className="md:col-span-2">
                 <input type="text" readOnly value={k} className="w-full rounded-lg border-gray-200 bg-gray-50 text-gray-700" />
               </div>
-              <div className="md:col-span-3">
-                <input
-                  type="number"
-                  min={range.min}
-                  max={range.max}
-                  step={range.step}
-                  required
-                  value={metricsValues[k]}
-                  onChange={(e) => {
-                    const { value } = e.target;
-                    if (value === '') {
-                      setMetricsValues((prev) => ({ ...prev, [k]: '' }));
-                      return;
-                    }
-                    const num = Number(value);
-                    if (Number.isNaN(num)) return;
-                    
-                    // 범위에 맞게 clamp
-                    const clamped = Math.min(Math.max(num, range.min), range.max);
-                    setMetricsValues((prev) => ({ ...prev, [k]: clamped.toString() }));
-                  }}
-                  className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                  placeholder={`${range.min}~${range.max}${range.unit} (예: ${
-                    k === 'MMLU' ? '87' : 
-                    k === 'InceptionScore' ? '290' : 
+                <div className="md:col-span-3">
+                  <input
+                    type="number"
+                    min={range.min}
+                    max={range.max}
+                    step={range.step}
+                    inputMode={range.step < 1 ? 'decimal' : 'numeric'}
+                    required
+                    value={metricsValues[k]}
+                    onChange={(e) => {
+                      const { value } = e.target;
+                      if (value === '') {
+                        setMetricsValues((prev) => ({ ...prev, [k]: '' }));
+                        return;
+                      }
+                      const num = Number(value);
+                      if (Number.isNaN(num)) return;
+
+                      // 범위에 맞게 clamp
+                      const clamped = Math.min(Math.max(num, range.min), range.max);
+
+                      let normalized = clamped;
+                      let formatted = clamped.toString();
+
+                      if (typeof range.step === 'number' && range.step > 0 && !Number.isInteger(range.step)) {
+                        const decimals = range.step.toString().split('.')[1]?.length || 0;
+                        normalized = Number(clamped.toFixed(decimals));
+                        formatted = normalized.toFixed(decimals);
+                      } else {
+                        formatted = normalized.toString();
+                      }
+
+                      setMetricsValues((prev) => ({ ...prev, [k]: formatted }));
+                    }}
+                    className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                    placeholder={`${range.min}~${range.max}${range.unit} (예: ${
+                      k === 'MMLU' ? '87' :
+                      k === 'InceptionScore' ? '290' :
                     k === 'MOS' ? '4.4' : 
                     '92.5'
                   })`}
