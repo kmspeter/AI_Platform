@@ -13,7 +13,6 @@ export const Playground = () => {
   const [temperature, setTemperature] = useState(0.7);
   const [maxTokens, setMaxTokens] = useState(1000);
   const [systemPrompt, setSystemPrompt] = useState('도움이 되는 AI 어시스턴트입니다.');
-  const [topP, setTopP] = useState(0.9);
   const [sessionId] = useState(`session-${Date.now()}`);
   const [totalCost, setTotalCost] = useState(0);
   const messagesEndRef = useRef(null);
@@ -397,22 +396,6 @@ print(data['content'])`;
                   <span>정확</span>
                   <span>창의적</span>
                 </div>
-              </div>
-
-              {/* Top-p를 온도 아래로 이동 */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Top-p: {topP}
-                </label>
-                <input
-                  type="range"
-                  min="0"
-                  max="1"
-                  step="0.1"
-                  value={topP}
-                  onChange={(e) => setTopP(Number(e.target.value))}
-                  className="w-full accent-blue-600"
-                />
               </div>
 
               <div>
