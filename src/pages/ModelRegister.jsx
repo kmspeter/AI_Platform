@@ -19,6 +19,54 @@ const licenseOptions = [
 
 const pricingPlans = ['research', 'standard', 'enterprise'];
 
+// 메트릭별 범위 정의
+const METRIC_RANGES = {
+  // LLM: 0-100 (백분율)
+  MMLU: { min: 0, max: 100, step: 0.01, unit: '%' },
+  HellaSwag: { min: 0, max: 100, step: 0.01, unit: '%' },
+  ARC: { min: 0, max: 100, step: 0.01, unit: '%' },
+  TruthfulQA: { min: 0, max: 100, step: 0.01, unit: '%' },
+  GSM8K: { min: 0, max: 100, step: 0.01, unit: '%' },
+  HumanEval: { min: 0, max: 100, step: 0.01, unit: '%' },
+  
+  // Image Generation
+  FID: { min: 0, max: 100, step: 0.1, unit: '' },
+  InceptionScore: { min: 0, max: 1000, step: 0.1, unit: '' },
+  CLIPScore: { min: 0, max: 1, step: 0.01, unit: '' },
+  
+  // Multimodal: 0-100
+  MME: { min: 0, max: 100, step: 0.01, unit: '%' },
+  OCR_F1: { min: 0, max: 100, step: 0.01, unit: '%' },
+  VQAv2: { min: 0, max: 100, step: 0.01, unit: '%' },
+  
+  // Audio
+  WER_KO: { min: 0, max: 100, step: 0.1, unit: '%' },
+  MOS: { min: 0, max: 5, step: 0.1, unit: '' },
+  Latency: { min: 0, max: 10, step: 0.01, unit: 's' },
+};
+
+// 기술 스펙 필드 타입 정의
+const TECHNICAL_SPEC_FIELD_TYPES = {
+  LLM: {
+    contextWindow: 'string',      // "128k"
+    maxOutputTokens: 'number'      // 4096
+  },
+  'image-generation': {
+    promptTokens: 'number',        // 1024
+    maxOutputResolution: 'string'  // "2048×2048"
+  },
+  audio: {
+    maxAudioInput: 'string',       // "30분"
+    maxAudioOutput: 'string',      // "5분"
+    sampleRate: 'string'           // "16-48 kHz"
+  },
+  multimodal: {
+    textTokens: 'string',          // "4k"
+    maxImages: 'number',           // 3
+    maxImageResolution: 'string'   // "2048×2048"
+  }
+};
+
 // IPFS 노드 서버 엔드포인트 (백엔드로 릴레이)
 const IPFS_NODE_ENDPOINT = resolveIpfsUrl('/ipfs/register');
 
@@ -464,19 +512,40 @@ export const ModelRegister = () => {
       if (raw !== '') {
         const num = Number(raw);
         if (!Number.isNaN(num)) {
-          const clamped = Math.min(Math.max(num, 0), 100);
-          metrics[k] = clamped;
+          const range = METRIC_RANGES[k];
+          if (range) {
+            // 범위에 맞게 clamp
+            const clamped = Math.min(Math.max(num, range.min), range.max);
+            metrics[k] = clamped;
+          } else {
+            // 범위 정의 없으면 0 이상
+            metrics[k] = Math.max(num, 0);
+          }
         }
       }
     });
 
     const specKeys = Object.keys(technicalSpecFields);
+    const fieldTypes = TECHNICAL_SPEC_FIELD_TYPES[modelForm.modality] || {};
+
     const technicalSpecs = specKeys.reduce((acc, key) => {
       const value = modelForm.technicalSpecs[key];
       if (value !== '' && value !== undefined && value !== null) {
-        const numeric = Number(value);
-        if (!Number.isNaN(numeric)) {
-          acc[key] = numeric;
+        const fieldType = fieldTypes[key];
+        
+        if (fieldType === 'string') {
+          // 문자열로 유지
+          acc[key] = value.toString();
+        } else if (fieldType === 'number') {
+          // 숫자로 변환
+          const numeric = Number(value);
+          if (!Number.isNaN(numeric)) {
+            acc[key] = numeric;
+          }
+        } else {
+          // 타입 미정의 시 자동 판단
+          const numeric = Number(value);
+          acc[key] = Number.isNaN(numeric) ? value.toString() : numeric;
         }
       }
       return acc;
@@ -536,8 +605,18 @@ export const ModelRegister = () => {
     for (const k of requiredMetricKeys) {
       const v = (metricsValues[k] ?? '').toString().trim();
       if (!v) return `성능 메트릭 "${k}" 값을 입력해 주세요.`;
+      
       const num = Number(v);
-      if (Number.isNaN(num) || num < 0 || num > 100) return `성능 메트릭 "${k}" 값은 0~100 사이의 숫자여야 합니다.`;
+      if (Number.isNaN(num)) return `성능 메트릭 "${k}" 값은 유효한 숫자여야 합니다.`;
+      
+      const range = METRIC_RANGES[k];
+      if (range) {
+        if (num < range.min || num > range.max) {
+          return `성능 메트릭 "${k}" 값은 ${range.min}~${range.max} 사이여야 합니다.`;
+        }
+      } else {
+        if (num < 0) return `성능 메트릭 "${k}" 값은 0 이상이어야 합니다.`;
+      }
     }
     if (!activePlans.length) return '라이선스를 선택해 활성화할 플랜이 필요합니다.';
     if (modelForm.license.includes('open-source') && modelForm.license.length > 1)
@@ -667,19 +746,21 @@ export const ModelRegister = () => {
         return (
           <>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">컨텍스트 윈도우 (토큰)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                컨텍스트 윈도우 (문자열: 예 "128k")
+              </label>
               <input
-                type="number"
-                min="0"
-                step="1"
+                type="text"  // 👈 문자열 입력 가능
                 value={modelForm.technicalSpecs.contextWindow || ''}
                 onChange={(e) => updateTechnicalSpecs('contextWindow', e.target.value)}
                 className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                placeholder="예: 128000"
+                placeholder="예: 128k"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">최대 출력 토큰 (토큰)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                최대 출력 토큰 (숫자)
+              </label>
               <input
                 type="number"
                 min="0"
@@ -696,7 +777,9 @@ export const ModelRegister = () => {
         return (
           <>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">프롬프트 토큰 제한 (토큰)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                프롬프트 토큰 제한 (숫자)
+              </label>
               <input
                 type="number"
                 min="0"
@@ -708,15 +791,15 @@ export const ModelRegister = () => {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">최대 출력 해상도 (px)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                최대 출력 해상도 (문자열: 예 "2048×2048")
+              </label>
               <input
-                type="number"
-                min="0"
-                step="1"
+                type="text"  // 👈 문자열 입력 가능
                 value={modelForm.technicalSpecs.maxOutputResolution || ''}
                 onChange={(e) => updateTechnicalSpecs('maxOutputResolution', e.target.value)}
                 className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                placeholder="예: 2048"
+                placeholder="예: 2048×2048"
               />
             </div>
           </>
@@ -725,39 +808,39 @@ export const ModelRegister = () => {
         return (
           <>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">최대 오디오 입력 (분)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                최대 오디오 입력 (문자열: 예 "30분")
+              </label>
               <input
-                type="number"
-                min="0"
-                step="0.1"
+                type="text"  // 👈 문자열 입력 가능
                 value={modelForm.technicalSpecs.maxAudioInput || ''}
                 onChange={(e) => updateTechnicalSpecs('maxAudioInput', e.target.value)}
                 className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                placeholder="예: 30"
+                placeholder="예: 30분"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">최대 오디오 출력 (분)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                최대 오디오 출력 (문자열: 예 "5분")
+              </label>
               <input
-                type="number"
-                min="0"
-                step="0.1"
+                type="text"
                 value={modelForm.technicalSpecs.maxAudioOutput || ''}
                 onChange={(e) => updateTechnicalSpecs('maxAudioOutput', e.target.value)}
                 className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                placeholder="예: 5"
+                placeholder="예: 5분"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">샘플레이트 (kHz)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                샘플레이트 (문자열: 예 "16-48 kHz")
+              </label>
               <input
-                type="number"
-                min="0"
-                step="0.1"
+                type="text"
                 value={modelForm.technicalSpecs.sampleRate || ''}
                 onChange={(e) => updateTechnicalSpecs('sampleRate', e.target.value)}
                 className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                placeholder="예: 48"
+                placeholder="예: 16-48 kHz"
               />
             </div>
           </>
@@ -766,19 +849,21 @@ export const ModelRegister = () => {
         return (
           <>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">텍스트 토큰 제한 (토큰)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                텍스트 토큰 제한 (문자열: 예 "4k")
+              </label>
               <input
-                type="number"
-                min="0"
-                step="1"
+                type="text"  // 👈 문자열 입력 가능
                 value={modelForm.technicalSpecs.textTokens || ''}
                 onChange={(e) => updateTechnicalSpecs('textTokens', e.target.value)}
                 className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                placeholder="예: 4000"
+                placeholder="예: 4k"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">최대 이미지 수 (장)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                최대 이미지 수 (숫자)
+              </label>
               <input
                 type="number"
                 min="0"
@@ -790,15 +875,15 @@ export const ModelRegister = () => {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">최대 이미지 해상도 (px)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                최대 이미지 해상도 (문자열: 예 "2048×2048")
+              </label>
               <input
-                type="number"
-                min="0"
-                step="1"
+                type="text"  // 👈 문자열 입력 가능
                 value={modelForm.technicalSpecs.maxImageResolution || ''}
                 onChange={(e) => updateTechnicalSpecs('maxImageResolution', e.target.value)}
                 className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                placeholder="예: 2048"
+                placeholder="예: 2048×2048"
               />
             </div>
           </>
@@ -811,36 +896,50 @@ export const ModelRegister = () => {
   const renderMetricsFields = () => {
     return (
       <div className="space-y-3">
-        {requiredMetricKeys.map((k) => (
-          <div key={k} className="grid grid-cols-1 md:grid-cols-5 gap-3 items-center">
-            <div className="md:col-span-2">
-              <input type="text" readOnly value={k} className="w-full rounded-lg border-gray-200 bg-gray-50 text-gray-700" />
+        {requiredMetricKeys.map((k) => {
+          const range = METRIC_RANGES[k] || { min: 0, max: 100, step: 0.01, unit: '' };
+          
+          return (
+            <div key={k} className="grid grid-cols-1 md:grid-cols-5 gap-3 items-center">
+              <div className="md:col-span-2">
+                <input type="text" readOnly value={k} className="w-full rounded-lg border-gray-200 bg-gray-50 text-gray-700" />
+              </div>
+              <div className="md:col-span-3">
+                <input
+                  type="number"
+                  min={range.min}
+                  max={range.max}
+                  step={range.step}
+                  required
+                  value={metricsValues[k]}
+                  onChange={(e) => {
+                    const { value } = e.target;
+                    if (value === '') {
+                      setMetricsValues((prev) => ({ ...prev, [k]: '' }));
+                      return;
+                    }
+                    const num = Number(value);
+                    if (Number.isNaN(num)) return;
+                    
+                    // 범위에 맞게 clamp
+                    const clamped = Math.min(Math.max(num, range.min), range.max);
+                    setMetricsValues((prev) => ({ ...prev, [k]: clamped.toString() }));
+                  }}
+                  className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                  placeholder={`${range.min}~${range.max}${range.unit} (예: ${
+                    k === 'MMLU' ? '87' : 
+                    k === 'InceptionScore' ? '290' : 
+                    k === 'MOS' ? '4.4' : 
+                    '92.5'
+                  })`}
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  범위: {range.min}~{range.max}{range.unit}
+                </p>
+              </div>
             </div>
-            <div className="md:col-span-3">
-              <input
-                type="number"
-                min="0"
-                max="100"
-                step="0.01"
-                required
-                value={metricsValues[k]}
-                onChange={(e) => {
-                  const { value } = e.target;
-                  if (value === '') {
-                    setMetricsValues((prev) => ({ ...prev, [k]: '' }));
-                    return;
-                  }
-                  const num = Number(value);
-                  if (Number.isNaN(num)) return;
-                  const clamped = Math.min(Math.max(num, 0), 100);
-                  setMetricsValues((prev) => ({ ...prev, [k]: clamped.toString() }));
-                }}
-                className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                placeholder={`0~100 (예: ${k === 'MMLU' ? '87' : '92.5'})`}
-              />
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     );
   };
