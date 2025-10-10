@@ -749,19 +749,52 @@ export const ModelDetail = () => {
           <h2 className="text-2xl font-semibold text-gray-900 mb-6">계보</h2>
           <div className="bg-white rounded-xl border border-gray-200 p-6">
             {model.lineage && model.lineage.length > 0 ? (
-              <div className="space-y-4">
-                {model.lineage.map((line, index) => (
-                  <div key={index} className="flex items-center justify-center py-4">
-                    <div className="text-center">
-                      <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <Bot className="h-8 w-8 text-blue-600" />
+              <div className="space-y-6">
+                {model.lineage.map((line, index) => {
+                  const isObject = line && typeof line === 'object' && !Array.isArray(line);
+                  const from = isObject ? (line.from || line.parent || line.parentName || line.source || '') : '';
+                  const to = isObject ? (line.to || line.child || line.childName || line.target || '') : '';
+                  const relationship = isObject ? (line.relationship || line.type || line.transition || '') : '';
+                  const step = isObject && (line.step || line.order || line.stage || null);
+
+                  if (!isObject) {
+                    return (
+                      <div key={index} className="flex items-center justify-center py-4">
+                        <div className="text-center">
+                          <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                            <Bot className="h-8 w-8 text-blue-600" />
+                          </div>
+                          <p className="text-gray-700 break-words">{line}</p>
+                        </div>
                       </div>
-                      <p className="text-gray-700">
-                        {typeof line === 'string' ? line : JSON.stringify(line)}
-                      </p>
+                    );
+                  }
+
+                  return (
+                    <div key={index} className="py-4">
+                      <div className="flex flex-col items-center text-center space-y-3">
+                        <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center">
+                          <Bot className="h-8 w-8 text-blue-600" />
+                        </div>
+                        {step !== null && (
+                          <span className="text-xs font-medium text-blue-600 uppercase tracking-wide">STEP {step}</span>
+                        )}
+                        {from && (
+                          <p className="text-base font-semibold text-gray-900 break-words">{from}</p>
+                        )}
+                        {relationship && (
+                          <p className="text-sm font-medium text-blue-600 uppercase tracking-wide">{relationship}</p>
+                        )}
+                        {to && (
+                          <p className="text-base text-gray-700 break-words">{to}</p>
+                        )}
+                        {!from && !relationship && !to && (
+                          <p className="text-gray-700 break-words">{JSON.stringify(line)}</p>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <div className="flex items-center justify-center py-8">

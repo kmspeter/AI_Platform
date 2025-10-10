@@ -17,6 +17,15 @@ const licenseOptions = [
   { value: 'open-source', label: '오픈소스(단독 선택)' },
 ];
 
+const lineageRelationshipOptions = [
+  { value: 'fine_tuned', label: '파인튜닝 (fine_tuned)' },
+  { value: 'distilled', label: '지식 증류 (distilled)' },
+  { value: 'merged', label: '모델 병합 (merged)' },
+  { value: 'quantized', label: '양자화 (quantized)' },
+  { value: 'adapter', label: '어댑터 추가 (adapter)' },
+  { value: 'custom', label: '기타 (custom)' },
+];
+
 const pricingPlans = ['research', 'standard', 'enterprise'];
 
 // 메트릭별 범위 정의
@@ -266,6 +275,7 @@ export const ModelRegister = () => {
     technicalSpecs: { ...TECHNICAL_SPEC_TEMPLATES.LLM },
     sampleData: { prompt: '', output: '' },
     parentModelId: '',
+    parentRelationship: 'fine_tuned',
     releaseNotes: '',
     thumbnail: '',
   });
@@ -522,6 +532,15 @@ export const ModelRegister = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    if (!modelForm.uploader && user?.email) {
+      const localPart = user.email.split('@')[0] || '';
+      if (localPart) {
+        setModelForm((prev) => (prev.uploader ? prev : { ...prev, uploader: localPart }));
+      }
+    }
+  }, [modelForm.uploader, user?.email]);
+
   useEffect(() => () => {
     if (thumbnailPreview) URL.revokeObjectURL(thumbnailPreview);
   }, [thumbnailPreview]);
@@ -636,8 +655,16 @@ export const ModelRegister = () => {
       license: modelForm.license,
       pricing,
       parentModelId: modelForm.parentModelId,
+      parentModelRelationship: modelForm.parentRelationship,
       walletAddress: user?.wallet?.address ?? null,
     };
+
+    if (modelForm.parentModelId) {
+      payload.lineage = {
+        parentModelId: modelForm.parentModelId,
+        relationship: modelForm.parentRelationship,
+      };
+    }
 
     if (modelForm.releaseDate) payload.releaseDate = modelForm.releaseDate;
     if (modelForm.overview.trim()) payload.overview = modelForm.overview.trim();
@@ -660,6 +687,7 @@ export const ModelRegister = () => {
 
   const validateBeforeSubmit = () => {
     if (!modelForm.parentModelId) return '부모 모델을 선택해 주세요.';
+    if (!modelForm.parentRelationship) return '부모 모델과의 관계를 선택해 주세요.';
     for (const k of requiredMetricKeys) {
       const v = (metricsValues[k] ?? '').toString().trim();
       if (!v) return `성능 메트릭 "${k}" 값을 입력해 주세요.`;
@@ -1338,6 +1366,20 @@ export const ModelRegister = () => {
                 ))}
               </select>
               {modelsError && <p className="mt-2 text-sm text-red-500">{modelsError}</p>}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">업그레이드 방식 *</label>
+              <select
+                value={modelForm.parentRelationship}
+                onChange={(e) => updateModelForm('parentRelationship', e.target.value)}
+                className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+              >
+                <option value="" disabled>관계를 선택하세요</option>
+                {lineageRelationshipOptions.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
             </div>
 
             {/* 라이선스 */}
