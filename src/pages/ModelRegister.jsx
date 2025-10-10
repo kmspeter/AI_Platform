@@ -1309,8 +1309,8 @@ export const ModelRegister = () => {
               <input
                 type="text"
                 value={modelForm.uploader}
-                onChange={(e) => updateModelForm('uploader', e.target.value)}
-                className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                readOnly
+                className="w-full rounded-lg border-gray-200 bg-gray-50 text-gray-600 cursor-not-allowed"
                 placeholder="예: openai_official"
               />
             </div>
