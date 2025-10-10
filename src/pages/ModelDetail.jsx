@@ -794,29 +794,80 @@ export const ModelDetail = () => {
         <section id="provenance" className="mb-16">
           <h2 className="text-2xl font-semibold text-gray-900 mb-6">계보</h2>
           <div className="bg-white rounded-xl border border-gray-200 p-6">
-            {lineageNodes.length > 0 ? (
-              <div className="flex flex-col items-center text-center space-y-4">
-                {lineageNodes.map((item, index) => {
-                  if (item.type === 'connector') {
+            {model.lineage && model.lineage.length > 0 ? (
+              <div className="flex flex-col items-center space-y-2">
+                {model.lineage.map((line, index) => {
+                  const isObject = line && typeof line === 'object' && !Array.isArray(line);
+                  const from = isObject ? (line.from || line.parent || line.parentName || line.source || '') : '';
+                  const to = isObject ? (line.to || line.child || line.childName || line.target || '') : '';
+                  const relationship = isObject ? (line.relationship || line.type || line.transition || '') : '';
+
+                  if (!isObject) {
                     return (
-                      <div key={`connector-${index}`} className="flex flex-col items-center text-blue-600">
-                        <ArrowDown className="h-5 w-5" />
-                        {item.label && (
-                          <span className="mt-1 text-xs font-semibold text-blue-600">
-                            {item.label}
-                          </span>
-                        )}
+                      <div key={index} className="flex flex-col items-center">
+                        <div className="flex flex-col items-center">
+                          <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-3">
+                            <Bot className="h-8 w-8 text-blue-600" />
+                          </div>
+                          <div className="bg-blue-50 rounded-lg px-6 py-3 border-2 border-blue-200">
+                            <p className="text-base font-semibold text-gray-900">{line}</p>
+                          </div>
+                        </div>
                       </div>
                     );
                   }
 
                   return (
-                    <div
-                      key={`node-${index}`}
-                      className="px-4 py-2 bg-blue-50 border border-blue-100 rounded-lg text-sm font-semibold text-gray-900"
-                    >
-                      {item.label}
-                    </div>
+                    <React.Fragment key={index}>
+                      {/* From 노드 */}
+                      {from && index === 0 && (
+                        <div className="flex flex-col items-center">
+                          <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-3">
+                            <Bot className="h-8 w-8 text-blue-600" />
+                          </div>
+                          <div className="bg-blue-50 rounded-lg px-6 py-3 border-2 border-blue-200">
+                            <p className="text-base font-semibold text-gray-900">{from}</p>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* 화살표와 관계 텍스트 */}
+                      {(from || to) && (
+                        <div className="flex flex-col items-center py-2">
+                          <div className="w-0.5 h-8 bg-blue-300"></div>
+                          <div className="w-0 h-0 border-l-8 border-r-8 border-t-8 border-l-transparent border-r-transparent border-t-blue-400"></div>
+                          {relationship && (
+                            <div className="mt-2 px-3 py-1 bg-blue-100 rounded-full">
+                              <span className="text-xs font-medium text-blue-700">{relationship}</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      
+                      {/* To 노드 */}
+                      {to && (
+                        <div className="flex flex-col items-center">
+                          <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-3">
+                            <Bot className="h-8 w-8 text-blue-600" />
+                          </div>
+                          <div className="bg-blue-50 rounded-lg px-6 py-3 border-2 border-blue-200">
+                            <p className="text-base font-semibold text-gray-900">{to}</p>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* 객체가 아니거나 from/to가 없는 경우 */}
+                      {!from && !to && (
+                        <div className="flex flex-col items-center">
+                          <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-3">
+                            <Bot className="h-8 w-8 text-blue-600" />
+                          </div>
+                          <div className="bg-blue-50 rounded-lg px-6 py-3 border-2 border-blue-200">
+                            <p className="text-gray-700">{JSON.stringify(line)}</p>
+                          </div>
+                        </div>
+                      )}
+                    </React.Fragment>
                   );
                 })}
               </div>
