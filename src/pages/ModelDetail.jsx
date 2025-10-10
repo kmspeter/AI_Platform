@@ -23,7 +23,8 @@ import {
   Shield,
   Bot,
   Loader2,
-  AlertCircle
+  AlertCircle,
+  ArrowDown
 } from 'lucide-react';
 
 const extractModelResponse = (data) => {
@@ -378,6 +379,51 @@ export const ModelDetail = () => {
   const allMetrics = model.metricDisplay || [];
   const hasAdditionalMetrics = allMetrics.length > topMetrics.length;
   const releaseNotes = Array.isArray(model.releaseNotes) ? model.releaseNotes : [];
+
+  const lineageEntries = Array.isArray(model.lineage) ? model.lineage : [];
+  const lineageNodes = lineageEntries.reduce((acc, line, index) => {
+    const isObject = line && typeof line === 'object' && !Array.isArray(line);
+
+    if (!isObject) {
+      const label = typeof line === 'string' ? line : JSON.stringify(line);
+      if (label) {
+        acc.push({ type: 'node', label });
+      }
+      return acc;
+    }
+
+    const from = line.from || line.parent || line.parentName || line.source || '';
+    const to = line.to || line.child || line.childName || line.target || '';
+    const relationship = line.relationship || line.type || line.transition || '';
+
+    if (index === 0 && from) {
+      acc.push({ type: 'node', label: from });
+    }
+
+    if (index > 0 && from) {
+      const previous = acc[acc.length - 1];
+      if (!previous || previous.type !== 'node' || previous.label !== from) {
+        acc.push({ type: 'node', label: from });
+      }
+    }
+
+    const lastItem = acc[acc.length - 1];
+    const hasPreviousNode = lastItem && lastItem.type === 'node';
+    const shouldAddConnector = Boolean((relationship || to) && hasPreviousNode);
+
+    if (shouldAddConnector) {
+      acc.push({
+        type: 'connector',
+        label: relationship,
+      });
+    }
+
+    if (to) {
+      acc.push({ type: 'node', label: to });
+    }
+
+    return acc;
+  }, []);
 
   return (
     <div className="flex-1">
@@ -748,50 +794,28 @@ export const ModelDetail = () => {
         <section id="provenance" className="mb-16">
           <h2 className="text-2xl font-semibold text-gray-900 mb-6">계보</h2>
           <div className="bg-white rounded-xl border border-gray-200 p-6">
-            {model.lineage && model.lineage.length > 0 ? (
-              <div className="space-y-6">
-                {model.lineage.map((line, index) => {
-                  const isObject = line && typeof line === 'object' && !Array.isArray(line);
-                  const from = isObject ? (line.from || line.parent || line.parentName || line.source || '') : '';
-                  const to = isObject ? (line.to || line.child || line.childName || line.target || '') : '';
-                  const relationship = isObject ? (line.relationship || line.type || line.transition || '') : '';
-                  const step = isObject && (line.step || line.order || line.stage || null);
-
-                  if (!isObject) {
+            {lineageNodes.length > 0 ? (
+              <div className="flex flex-col items-center text-center space-y-4">
+                {lineageNodes.map((item, index) => {
+                  if (item.type === 'connector') {
                     return (
-                      <div key={index} className="flex items-center justify-center py-4">
-                        <div className="text-center">
-                          <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                            <Bot className="h-8 w-8 text-blue-600" />
-                          </div>
-                          <p className="text-gray-700 break-words">{line}</p>
-                        </div>
+                      <div key={`connector-${index}`} className="flex flex-col items-center text-blue-600">
+                        <ArrowDown className="h-5 w-5" />
+                        {item.label && (
+                          <span className="mt-1 text-xs font-semibold text-blue-600">
+                            {item.label}
+                          </span>
+                        )}
                       </div>
                     );
                   }
 
                   return (
-                    <div key={index} className="py-4">
-                      <div className="flex flex-col items-center text-center space-y-3">
-                        <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center">
-                          <Bot className="h-8 w-8 text-blue-600" />
-                        </div>
-                        {step !== null && (
-                          <span className="text-xs font-medium text-blue-600 uppercase tracking-wide">STEP {step}</span>
-                        )}
-                        {from && (
-                          <p className="text-base font-semibold text-gray-900 break-words">{from}</p>
-                        )}
-                        {relationship && (
-                          <p className="text-sm font-medium text-blue-600 uppercase tracking-wide">{relationship}</p>
-                        )}
-                        {to && (
-                          <p className="text-base text-gray-700 break-words">{to}</p>
-                        )}
-                        {!from && !relationship && !to && (
-                          <p className="text-gray-700 break-words">{JSON.stringify(line)}</p>
-                        )}
-                      </div>
+                    <div
+                      key={`node-${index}`}
+                      className="px-4 py-2 bg-blue-50 border border-blue-100 rounded-lg text-sm font-semibold text-gray-900"
+                    >
+                      {item.label}
                     </div>
                   );
                 })}
