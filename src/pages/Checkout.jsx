@@ -191,7 +191,7 @@ export const Checkout = () => {
   }, [modelData, selectedPlanId]);
 
   const platformFeeLamports = convertSolToLamports(2.0);
-  const networkFeeEstimateLamports = convertSolToLamports(0.5);
+  const networkFeeEstimateLamports = convertSolToLamports(1);
   const planPriceLamports = Number.isFinite(Number(selectedPlan?.price))
     ? convertSolToLamports(Number(selectedPlan.price))
     : 0;
