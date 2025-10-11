@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { Wallet, Check, AlertCircle, CreditCard, Loader2 } from 'lucide-react';
+import { Connection, LAMPORTS_PER_SOL, PublicKey, SystemProgram, Transaction } from '@solana/web3.js';
 import { phantomWallet } from '../utils/phantomWallet';
 import { cachedFetch } from '../utils/apiCache';
 import { resolveApiUrl } from '../config/api';
@@ -70,6 +71,9 @@ const formatTokenLimit = (value) => {
   return `${value.toLocaleString()} 토큰`;
 };
 
+const MERCHANT_WALLET_ADDRESS = 'Ctsc4RLun5Rrv8pLSidD8cpYKWWdsT1sNUqpA7rv4YLN';
+const SOLANA_ENDPOINT = 'https://api.devnet.solana.com';
+
 export const Checkout = () => {
   const { id } = useParams();
   const [searchParams] = useSearchParams();
@@ -82,6 +86,8 @@ export const Checkout = () => {
   const [paymentError, setPaymentError] = useState('');
   const [paymentSuccess, setPaymentSuccess] = useState(false);
   const [transactionResult, setTransactionResult] = useState(null);
+  const [paymentStatus, setPaymentStatus] = useState('');
+  const [airdropStatus, setAirdropStatus] = useState('');
   const [modelLoading, setModelLoading] = useState(true);
   const [modelError, setModelError] = useState('');
   const [modelData, setModelData] = useState(null);
@@ -191,15 +197,25 @@ export const Checkout = () => {
   const planMetadata = selectedPlan?.metadata || {};
 
   const canProceedToPayment = agreedToTerms && agreedToPrivacy && !!selectedPlan;
+  const walletStatus = phantomWallet.getConnectionStatus();
+
+  const connection = useMemo(() => new Connection(SOLANA_ENDPOINT, 'confirmed'), []);
 
   const handlePhantomConnect = async () => {
     try {
+      console.log('🔗 Phantom 지갑 연결 시도 중...');
       setPaymentError('');
+      setPaymentStatus('');
+      setAirdropStatus('');
+      setPaymentSuccess(false);
+      setTransactionResult(null);
       await phantomWallet.connect();
       setSelectedWallet('phantom');
       setCurrentStep(2);
+      console.log('✅ Phantom 지갑 연결 완료');
     } catch (error) {
       setPaymentError(error.message);
+      console.error('Phantom 연결 실패:', error);
     }
   };
 
@@ -213,97 +229,140 @@ export const Checkout = () => {
 
     setPaymentLoading(true);
     setPaymentError('');
+    setPaymentStatus('결제 준비 중...');
+    setAirdropStatus('');
+    setPaymentSuccess(false);
+    setTransactionResult(null);
 
     try {
-      // 1. 결제 데이터 준비
-      const paymentData = {
-        modelId: modelData.id,
-        modelName: modelData.name,
-        planId: selectedPlan.id,
-        planName: selectedPlan.name,
-        amount: totalAmount,
-        currency: 'SOL',
-        subtotal: planPrice,
-        fees: {
-          platform: platformFee,
-          network: networkFeeEstimate,
+      // Step 1: 팬텀 지갑 제공자 확인
+      console.log('🔍 Phantom provider 확인 중...');
+      const provider = phantomWallet.provider || (window?.solana?.isPhantom ? window.solana : null);
+      if (!provider) {
+        throw new Error('팬텀 지갑이 감지되지 않았습니다. 설치 후 다시 시도해주세요.');
+      }
+
+      if (!provider.publicKey) {
+        throw new Error('팬텀 지갑에 연결되지 않았습니다. 먼저 지갑을 연결해주세요.');
+      }
+
+      const userPublicKey = new PublicKey(provider.publicKey.toString());
+
+      // Step 2: 사용자 잔액 확인 및 Devnet Airdrop
+      console.log('💰 사용자 잔액 확인 중...');
+      setPaymentStatus('지갑 잔액 확인 중...');
+      const totalLamports = Math.round(totalAmount * LAMPORTS_PER_SOL);
+      const currentBalance = await connection.getBalance(userPublicKey);
+      console.log(`현재 잔액: ${currentBalance} lamports`);
+
+      if (currentBalance < totalLamports) {
+        console.log('💸 잔액 부족. Devnet Airdrop을 요청합니다.');
+        setAirdropStatus('잔액이 부족하여 Devnet Airdrop(2 SOL)을 요청합니다...');
+        const airdropSignature = await connection.requestAirdrop(userPublicKey, 2 * LAMPORTS_PER_SOL);
+        const latestBlockhash = await connection.getLatestBlockhash();
+        setAirdropStatus('Airdrop 완료 대기 중...');
+        await connection.confirmTransaction({ signature: airdropSignature, ...latestBlockhash }, 'confirmed');
+        console.log('✅ Airdrop 완료. 잔액 재확인 중...');
+        const refreshedBalance = await connection.getBalance(userPublicKey);
+        console.log(`에어드롭 후 잔액: ${refreshedBalance} lamports`);
+        if (refreshedBalance < totalLamports) {
+          throw new Error('에어드롭 후에도 결제에 필요한 잔액이 부족합니다.');
+        }
+        setAirdropStatus('Airdrop 완료! 결제를 계속 진행합니다.');
+      } else {
+        setAirdropStatus('충분한 잔액이 확인되었습니다.');
+      }
+
+      // Step 3: 트랜잭션 생성
+      console.log('🧾 트랜잭션 생성 중...');
+      setPaymentStatus('트랜잭션을 준비하고 있습니다...');
+      const merchantPublicKey = new PublicKey(MERCHANT_WALLET_ADDRESS);
+      const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('confirmed');
+      const transaction = new Transaction({
+        feePayer: userPublicKey,
+        recentBlockhash: blockhash,
+      }).add(
+        SystemProgram.transfer({
+          fromPubkey: userPublicKey,
+          toPubkey: merchantPublicKey,
+          lamports: totalLamports,
+        })
+      );
+
+      // Step 4: 팬텀 지갑 서명
+      console.log('✍️ Phantom 서명 대기 중...');
+      setPaymentStatus('Phantom 지갑에서 트랜잭션 서명을 요청 중입니다...');
+      let signedTransaction;
+      try {
+        signedTransaction = await provider.signTransaction(transaction);
+      } catch (signatureError) {
+        console.error('Phantom 서명 오류:', signatureError);
+        if (signatureError?.code === 4001 || signatureError?.message?.toLowerCase?.().includes('user rejected')) {
+          throw new Error('사용자가 트랜잭션 서명을 거부했습니다.');
+        }
+        throw new Error('트랜잭션 서명 중 오류가 발생했습니다.');
+      }
+      console.log('✅ 서명 완료. 트랜잭션 전송을 시작합니다.');
+
+      // Step 5: Devnet 전송 및 확인
+      console.log('🚀 트랜잭션 전송 중...');
+      setPaymentStatus('트랜잭션을 Solana Devnet에 전송 중입니다...');
+      const signature = await connection.sendRawTransaction(signedTransaction.serialize());
+      console.log(`트랜잭션 시그니처: ${signature}`);
+      await connection.confirmTransaction({ signature, blockhash, lastValidBlockHeight }, 'confirmed');
+      console.log('✅ 트랜잭션이 Devnet에서 확인되었습니다.');
+
+      // Step 6: 백엔드 검증 요청
+      const verifyPayload = {
+        transactionSignature: signature,
+        order: {
+          modelId: modelData.id,
+          modelName: modelData.name,
+          planId: selectedPlan.id,
+          planName: selectedPlan.name,
+          amount: totalAmount,
+          currency: 'SOL',
+        },
+        wallet: {
+          publicKey: userPublicKey.toString(),
+          network: 'devnet',
+          provider: selectedWallet || 'phantom',
         },
         timestamp: Date.now(),
-        recipient: '0xModelHub...' // 실제 환경에서는 백엔드에서 제공
       };
 
-      // 2. 팬텀 지갑으로 트랜잭션 서명
-      console.log('Requesting transaction signature...');
-      const signedTransaction = await phantomWallet.signTransaction(paymentData);
-
-      console.log('✅ Transaction signed successfully!');
-
-      // 3. 백엔드로 전송될 데이터 출력
-      const backendPayload = {
-        transaction: {
-          signature: signedTransaction.signature,
-          publicKey: signedTransaction.publicKey,
-          message: signedTransaction.message,
+      console.log('🛡️ 백엔드 검증 요청 전송:', verifyPayload);
+      setPaymentStatus('백엔드에서 결제 내역을 검증 중입니다...');
+      const authToken = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null;
+      const verifyResponse = await fetch(resolveApiUrl('/api/payments/verify'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
         },
-        order: {
-          model: {
-            id: modelData.id,
-            name: modelData.name,
-            creator: modelData.creator,
-            version: modelData.versionName,
-          },
-          plan: {
-            id: selectedPlan.id,
-            name: selectedPlan.name,
-            price: planPrice,
-            billingType: selectedPlan.billingType,
-            rights,
-            metadata: planMetadata,
-          },
-          totals: {
-            subtotal: planPrice,
-            fees: paymentData.fees,
-            amount: totalAmount,
-            currency: paymentData.currency,
-          },
-          timestamp: paymentData.timestamp,
-        },
-        paymentData,
-        wallet: {
-          provider: selectedWallet || 'phantom',
-          network: 'solana',
-        },
-      };
+        body: JSON.stringify(verifyPayload),
+      });
 
-      console.log('📤 Data to be sent to backend:');
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      console.log(JSON.stringify(backendPayload, null, 2));
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      if (!verifyResponse.ok) {
+        const errorText = await verifyResponse.text();
+        console.error('백엔드 검증 실패 응답:', errorText);
+        throw new Error('백엔드 결제 검증 중 오류가 발생했습니다.');
+      }
 
-      // 백엔드 구현 전 - 임시로 성공 응답 시뮬레이션
-      console.log('⏳ Simulating backend processing (2 seconds)...');
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      const verifyResult = await verifyResponse.json().catch(() => ({}));
+      console.log('✅ 백엔드 검증 성공:', verifyResult);
 
-      const result = {
-        success: true,
-        transactionHash: '0x' + Math.random().toString(16).substr(2, 64),
-        accessPassId: 'pass_' + Math.random().toString(36).substr(2, 9),
-        message: '결제가 성공적으로 처리되었습니다.'
-      };
-
-      console.log('✅ Backend response (simulated):', result);
-
-      setTransactionResult(result);
+      setTransactionResult({
+        transactionSignature: signature,
+        verification: verifyResult,
+      });
       setPaymentSuccess(true);
-
-      // 성공 후 결과 페이지로 이동 (3초 후)
-      setTimeout(() => {
-        window.location.href = `/purchase/${result.transactionHash}`;
-      }, 3000);
+      setPaymentStatus('결제가 완료되었습니다.');
 
     } catch (error) {
       console.error('❌ Payment error:', error);
       setPaymentError(error.message || '결제 처리 중 오류가 발생했습니다.');
+      setPaymentStatus('결제가 실패했습니다. 다시 시도해주세요.');
     } finally {
       setPaymentLoading(false);
     }
@@ -516,7 +575,7 @@ export const Checkout = () => {
                       <h4 className="font-semibold text-green-800">지갑 연결됨</h4>
                     </div>
                     <p className="text-sm text-green-700 mt-1">
-                      Phantom Wallet - {phantomWallet.getConnectionStatus().publicKey?.slice(0, 4)}...{phantomWallet.getConnectionStatus().publicKey?.slice(-4)} (Solana)
+                      Phantom Wallet - {walletStatus.publicKey?.slice(0, 4)}...{walletStatus.publicKey?.slice(-4)} (Solana Devnet)
                     </p>
                   </div>
 
@@ -572,18 +631,42 @@ export const Checkout = () => {
                         <Check className="h-8 w-8 text-green-600" />
                       </div>
                       <h4 className="text-lg font-semibold text-gray-900 mb-2">결제 완료!</h4>
-                      <p className="text-gray-600 mb-6">트랜잭션이 성공적으로 처리되었습니다.</p>
+                      <p className="text-gray-600 mb-6">Solana Devnet에서 결제가 확인되었습니다.</p>
 
                       {transactionResult && (
-                        <div className="bg-green-50 rounded-lg p-4 mb-6">
-                          <div className="text-sm text-green-800 space-y-1">
-                            <div>트랜잭션 해시: <code className="font-mono">{transactionResult.transactionHash}</code></div>
-                            <div>Access Pass ID: <code className="font-mono">{transactionResult.accessPassId}</code></div>
+                        <div className="bg-green-50 rounded-lg p-4 mb-6 text-left">
+                          <div className="text-sm text-green-800 space-y-2">
+                            {transactionResult.transactionSignature && (
+                              <div className="flex flex-col">
+                                <span className="font-medium">트랜잭션 해시</span>
+                                <code className="font-mono break-all">{transactionResult.transactionSignature}</code>
+                              </div>
+                            )}
+                            {transactionResult.verification?.accessPassId && (
+                              <div className="flex flex-col">
+                                <span className="font-medium">Access Pass ID</span>
+                                <code className="font-mono break-all">{transactionResult.verification.accessPassId}</code>
+                              </div>
+                            )}
+                            {transactionResult.verification?.message && (
+                              <p className="text-sm text-green-700">{transactionResult.verification.message}</p>
+                            )}
                           </div>
                         </div>
                       )}
 
-                      <p className="text-sm text-gray-600">잠시 후 결과 페이지로 이동합니다...</p>
+                      {(airdropStatus || paymentStatus) && (
+                        <div className="space-y-2 mb-6">
+                          {airdropStatus && (
+                            <p className="text-sm text-blue-600">{airdropStatus}</p>
+                          )}
+                          {paymentStatus && (
+                            <p className="text-sm text-blue-600">{paymentStatus}</p>
+                          )}
+                        </div>
+                      )}
+
+                      <p className="text-sm text-gray-600">이제 모델 사용 권한을 확인하실 수 있습니다.</p>
                     </div>
                   ) : (
                     <div>
@@ -611,7 +694,7 @@ export const Checkout = () => {
                         <div className="text-sm text-gray-600 space-y-1">
                           <div className="flex justify-between">
                             <span>수신자:</span>
-                            <span className="font-mono">0xModelHub...</span>
+                            <span className="font-mono">{MERCHANT_WALLET_ADDRESS}</span>
                           </div>
                           <div className="flex justify-between">
                             <span>금액:</span>
@@ -619,10 +702,21 @@ export const Checkout = () => {
                           </div>
                           <div className="flex justify-between">
                             <span>네트워크:</span>
-                            <span>Solana</span>
+                            <span>Solana Devnet</span>
                           </div>
                         </div>
                       </div>
+
+                      {(airdropStatus || paymentStatus) && (
+                        <div className="space-y-2 mb-6">
+                          {airdropStatus && (
+                            <p className="text-sm text-blue-600">{airdropStatus}</p>
+                          )}
+                          {paymentStatus && (
+                            <p className="text-sm text-blue-600">{paymentStatus}</p>
+                          )}
+                        </div>
+                      )}
 
                       <button
                         onClick={handlePayment}
