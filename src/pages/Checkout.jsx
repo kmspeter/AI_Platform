@@ -6,6 +6,7 @@ import { phantomWallet } from '../utils/phantomWallet';
 import { cachedFetch } from '../utils/apiCache';
 import { resolveApiUrl } from '../config/api';
 import { extractPricingPlans, normalizeLicense, selectDefaultPlan } from '../utils/modelTransformers';
+import { convertSolToLamports, formatLamports } from '../utils/currency';
 
 const extractModelResponse = (data) => {
   if (!data) return [];
@@ -189,10 +190,12 @@ export const Checkout = () => {
     return modelData.pricingPlans.find(plan => plan.id === selectedPlanId) || modelData.pricingPlans[0] || null;
   }, [modelData, selectedPlanId]);
 
-  const platformFee = 2.0;
-  const networkFeeEstimate = 0.5;
-  const planPrice = Number.isFinite(selectedPlan?.price) ? Number(selectedPlan.price) : 0;
-  const totalAmount = planPrice + platformFee + networkFeeEstimate;
+  const platformFeeLamports = convertSolToLamports(2.0);
+  const networkFeeEstimateLamports = convertSolToLamports(0.5);
+  const planPriceLamports = Number.isFinite(Number(selectedPlan?.price))
+    ? convertSolToLamports(Number(selectedPlan.price))
+    : 0;
+  const totalLamports = planPriceLamports + platformFeeLamports + networkFeeEstimateLamports;
   const rights = selectedPlan?.rights?.length ? selectedPlan.rights : (modelData?.licenseTags || []);
   const planMetadata = selectedPlan?.metadata || {};
 
@@ -251,13 +254,13 @@ export const Checkout = () => {
       // Step 2: 사용자 잔액 확인 및 Devnet Airdrop
       console.log('💰 사용자 잔액 확인 중...');
       setPaymentStatus('지갑 잔액 확인 중...');
-      const totalLamports = Math.round(totalAmount * LAMPORTS_PER_SOL);
+      const requiredLamports = totalLamports;
       const currentBalance = await connection.getBalance(userPublicKey);
       console.log(`현재 잔액: ${currentBalance} lamports`);
 
-      if (currentBalance < totalLamports) {
+      if (currentBalance < requiredLamports) {
         console.log('💸 잔액 부족. Devnet Airdrop을 요청합니다.');
-        setAirdropStatus('잔액이 부족하여 Devnet Airdrop(2 SOL)을 요청합니다...');
+        setAirdropStatus(`잔액이 부족하여 Devnet Airdrop(${formatLamports(2 * LAMPORTS_PER_SOL)})을 요청합니다...`);
         const airdropSignature = await connection.requestAirdrop(userPublicKey, 2 * LAMPORTS_PER_SOL);
         const latestBlockhash = await connection.getLatestBlockhash();
         setAirdropStatus('Airdrop 완료 대기 중...');
@@ -265,7 +268,7 @@ export const Checkout = () => {
         console.log('✅ Airdrop 완료. 잔액 재확인 중...');
         const refreshedBalance = await connection.getBalance(userPublicKey);
         console.log(`에어드롭 후 잔액: ${refreshedBalance} lamports`);
-        if (refreshedBalance < totalLamports) {
+        if (refreshedBalance < requiredLamports) {
           throw new Error('에어드롭 후에도 결제에 필요한 잔액이 부족합니다.');
         }
         setAirdropStatus('Airdrop 완료! 결제를 계속 진행합니다.');
@@ -285,7 +288,7 @@ export const Checkout = () => {
         SystemProgram.transfer({
           fromPubkey: userPublicKey,
           toPubkey: merchantPublicKey,
-          lamports: totalLamports,
+          lamports: requiredLamports,
         })
       );
 
@@ -320,8 +323,8 @@ export const Checkout = () => {
           modelName: modelData.name,
           planId: selectedPlan.id,
           planName: selectedPlan.name,
-          amount: totalAmount,
-          currency: 'SOL',
+          amount: requiredLamports,
+          currency: 'LAMPORTS',
         },
         wallet: {
           publicKey: userPublicKey.toString(),
@@ -419,16 +422,16 @@ export const Checkout = () => {
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-gray-600">라이선스 비용</span>
                   <span className="text-sm font-medium">
-                    {planPrice === 0 ? '무료' : `${planPrice} SOL`}
+                    {planPriceLamports === 0 ? '무료' : formatLamports(planPriceLamports)}
                   </span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-gray-600">플랫폼 수수료</span>
-                  <span className="text-sm font-medium">{platformFee.toFixed(2)} SOL</span>
+                  <span className="text-sm font-medium">{formatLamports(platformFeeLamports)}</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-gray-600">네트워크 수수료</span>
-                  <span className="text-sm font-medium">~{networkFeeEstimate.toFixed(2)} SOL</span>
+                  <span className="text-sm font-medium">~{formatLamports(networkFeeEstimateLamports)}</span>
                 </div>
               </div>
 
@@ -436,7 +439,7 @@ export const Checkout = () => {
                 <div className="flex justify-between items-center">
                   <span className="font-semibold text-gray-900">총액</span>
                   <span className="font-bold text-xl text-gray-900">
-                    {totalAmount.toFixed(2)} SOL
+                    {formatLamports(totalLamports)}
                   </span>
                 </div>
               </div>
@@ -698,7 +701,7 @@ export const Checkout = () => {
                           </div>
                           <div className="flex justify-between">
                             <span>금액:</span>
-                            <span className="font-medium">{totalAmount.toFixed(2)} SOL</span>
+                            <span className="font-medium">{formatLamports(totalLamports)}</span>
                           </div>
                           <div className="flex justify-between">
                             <span>네트워크:</span>

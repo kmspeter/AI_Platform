@@ -1,6 +1,7 @@
 import React from 'react';
 import { X } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { formatLamports } from '../../utils/currency';
 
 export const ComparisonOverlay = ({ models, onClose, onRemove }) => {
   if (models.length === 0) return null;
@@ -78,7 +79,7 @@ export const ComparisonOverlay = ({ models, onClose, onRemove }) => {
               {models.map(model => (
                 <div key={`${model.id}-price`} className="py-3">
                   <div className="text-sm font-semibold text-gray-900">
-                    {model.pricing.type === 'free' ? '무료' : `${model.pricing.amount} SOL`}
+                    {model.pricing.type === 'free' ? '무료' : formatLamports(model.pricing.amount)}
                   </div>
                   <div className="text-xs text-gray-600">{model.license}</div>
                 </div>

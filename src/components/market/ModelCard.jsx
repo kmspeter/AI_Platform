@@ -1,6 +1,7 @@
 import React from 'react';
 import { Plus } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { formatLamports } from '../../utils/currency';
 
 export const ModelCard = ({ 
   model, 
@@ -90,7 +91,7 @@ export const ModelCard = ({
             <span className="font-semibold text-green-600">무료</span>
           ) : (
             <span className="font-semibold text-gray-900">
-              {`${model.pricing.amount} SOL`}
+              {formatLamports(model.pricing.amount)}
             </span>
           )}
         </div>
