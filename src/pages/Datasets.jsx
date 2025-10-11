@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Database, Download, Eye, ShoppingCart, Filter, Search, Star } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { convertSolToLamports, formatLamports, lamportsToSol } from '../utils/currency';
 
 export const Datasets = () => {
   const [filters, setFilters] = useState({
@@ -8,7 +9,7 @@ export const Datasets = () => {
     category: [],
     format: [],
     license: [],
-    priceRange: [0, 1000],
+    priceRange: [0, convertSolToLamports(1000)],
     minSize: 0
   });
   const [sortBy, setSortBy] = useState('popular');
@@ -24,7 +25,7 @@ export const Datasets = () => {
       license: '상업용',
       size: '2.5GB',
       samples: 150000,
-      pricing: { type: 'paid', amount: 50, currency: 'SOL' },
+      pricing: { type: 'paid', amount: convertSolToLamports(50), currency: 'LAMPORTS' },
       rating: 4.8,
       downloads: 1250,
       thumbnail: 'https://images.pexels.com/photos/8386440/pexels-photo-8386440.jpeg?auto=compress&cs=tinysrgb&w=300',
@@ -41,7 +42,7 @@ export const Datasets = () => {
       license: '연구용',
       size: '15GB',
       samples: 50000,
-      pricing: { type: 'paid', amount: 200, currency: 'SOL' },
+      pricing: { type: 'paid', amount: convertSolToLamports(200), currency: 'LAMPORTS' },
       rating: 4.9,
       downloads: 850,
       thumbnail: 'https://images.pexels.com/photos/6153354/pexels-photo-6153354.jpeg?auto=compress&cs=tinysrgb&w=300',
@@ -75,7 +76,7 @@ export const Datasets = () => {
       license: '상업용',
       size: '1.8GB',
       samples: 80000,
-      pricing: { type: 'paid', amount: 75, currency: 'SOL' },
+      pricing: { type: 'paid', amount: convertSolToLamports(75), currency: 'LAMPORTS' },
       rating: 4.7,
       downloads: 650,
       thumbnail: 'https://images.pexels.com/photos/8867434/pexels-photo-8867434.jpeg?auto=compress&cs=tinysrgb&w=300',
@@ -227,16 +228,16 @@ export const Datasets = () => {
             {/* Price Range */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-3">
-                가격 범위: ~${filters.priceRange[1]}
+                가격 범위: ~{formatLamports(filters.priceRange[1])}
               </label>
               <input
                 type="range"
                 min="0"
                 max="1000"
-                value={filters.priceRange[1]}
+                value={lamportsToSol(filters.priceRange[1])}
                 onChange={(e) => setFilters({
                   ...filters,
-                  priceRange: [0, Number(e.target.value)]
+                  priceRange: [0, convertSolToLamports(Number(e.target.value))]
                 })}
                 className="w-full accent-blue-600"
               />
@@ -313,7 +314,7 @@ export const Datasets = () => {
                       <span className="font-semibold text-green-600">무료</span>
                     ) : (
                       <span className="font-semibold text-gray-900">
-                        {`${dataset.pricing.amount} SOL`}
+                        {formatLamports(dataset.pricing.amount)}
                       </span>
                     )}
                   </div>

@@ -19,6 +19,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { generateMonthlyRevenueData } from '../utils/mockData';
+import { convertSolToLamports, formatLamports } from '../utils/currency';
 
 export const Personal = () => {
   const [activeTab, setActiveTab] = useState('overview');
@@ -79,7 +80,7 @@ export const Personal = () => {
       type: 'model',
       status: '활성',
       sales: 156,
-      revenue: 3120,
+      revenue: convertSolToLamports(3120),
       rating: 4.7,
       downloads: 2340,
       createdAt: '2024-01-15',
@@ -106,7 +107,7 @@ export const Personal = () => {
       type: 'dataset',
       status: '활성',
       sales: 89,
-      revenue: 4450,
+      revenue: convertSolToLamports(4450),
       rating: 4.9,
       downloads: 1250,
       createdAt: '2024-01-10',
@@ -118,7 +119,7 @@ export const Personal = () => {
       type: 'dataset',
       status: '활성',
       sales: 23,
-      revenue: 4600,
+      revenue: convertSolToLamports(4600),
       rating: 4.8,
       downloads: 450,
       createdAt: '2024-01-05',
@@ -133,9 +134,9 @@ export const Personal = () => {
   const avgRating = allItems.filter(item => item.rating > 0).reduce((sum, item, _, arr) => sum + item.rating / arr.length, 0);
 
   const recentUsers = [
-    { id: '1', name: '김개발자', email: 'dev@company.com', purchasedItem: 'MyLLM v2.0', amount: 20, date: '2시간 전' },
-    { id: '2', name: '이연구원', email: 'research@lab.com', purchasedItem: 'Korean Chat Dataset v3', amount: 50, date: '5시간 전' },
-    { id: '3', name: '박분석가', email: 'analyst@corp.com', purchasedItem: 'Medical Images Dataset', amount: 200, date: '1일 전' }
+    { id: '1', name: '김개발자', email: 'dev@company.com', purchasedItem: 'MyLLM v2.0', amount: convertSolToLamports(20), date: '2시간 전' },
+    { id: '2', name: '이연구원', email: 'research@lab.com', purchasedItem: 'Korean Chat Dataset v3', amount: convertSolToLamports(50), date: '5시간 전' },
+    { id: '3', name: '박분석가', email: 'analyst@corp.com', purchasedItem: 'Medical Images Dataset', amount: convertSolToLamports(200), date: '1일 전' }
   ];
 
   const handleUploadClick = () => {
@@ -184,7 +185,7 @@ export const Personal = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-gray-600">총 수익</p>
-                    <p className="text-2xl font-bold text-gray-900">{`${totalRevenue.toLocaleString()} SOL`}</p>
+                    <p className="text-2xl font-bold text-gray-900">{formatLamports(totalRevenue)}</p>
                     <p className="text-sm text-green-600 mt-1">+12% vs 지난달</p>
                   </div>
                   <DollarSign className="h-8 w-8 text-green-600" />
@@ -243,7 +244,7 @@ export const Personal = () => {
                       <YAxis
                         stroke="#9CA3AF"
                         style={{ fontSize: '12px' }}
-                        tickFormatter={(value) => `${(value / 1000).toFixed(0)}K`}
+                        tickFormatter={(value) => `${(value / 1_000_000).toFixed(0)}M`}
                       />
                       <Tooltip
                         contentStyle={{
@@ -252,7 +253,7 @@ export const Personal = () => {
                           borderRadius: '8px',
                           padding: '12px'
                         }}
-                        formatter={(value) => [`${value.toLocaleString()} SOL`, '수익']}
+                        formatter={(value) => [formatLamports(value), '수익']}
                       />
                       <Bar
                         dataKey="revenue"
@@ -280,7 +281,7 @@ export const Personal = () => {
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className="text-sm font-medium text-gray-900">{`${user.amount} SOL`}</div>
+                        <div className="text-sm font-medium text-gray-900">{formatLamports(user.amount)}</div>
                         <div className="text-xs text-gray-500">{user.date}</div>
                       </div>
                     </div>
@@ -337,7 +338,7 @@ export const Personal = () => {
                         </span>
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-900">{model.sales}</td>
-                      <td className="px-6 py-4 text-sm font-medium text-gray-900">{`${model.revenue} SOL`}</td>
+                      <td className="px-6 py-4 text-sm font-medium text-gray-900">{formatLamports(model.revenue)}</td>
                       <td className="px-6 py-4">
                         <div className="flex items-center space-x-1">
                           <Star className="h-4 w-4 text-yellow-400 fill-current" />
@@ -408,7 +409,7 @@ export const Personal = () => {
                         </span>
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-900">{dataset.sales}</td>
-                      <td className="px-6 py-4 text-sm font-medium text-gray-900">{`${dataset.revenue} SOL`}</td>
+                      <td className="px-6 py-4 text-sm font-medium text-gray-900">{formatLamports(dataset.revenue)}</td>
                       <td className="px-6 py-4">
                         <div className="flex items-center space-x-1">
                           <Star className="h-4 w-4 text-yellow-400 fill-current" />

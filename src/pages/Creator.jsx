@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Upload, Plus, Eye, Settings, BarChart3, FileText } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { convertSolToLamports, formatLamports } from '../utils/currency';
 
 export const Creator = () => {
   const [activeTab, setActiveTab] = useState('models');
@@ -197,15 +198,15 @@ export const Creator = () => {
                   <div className="space-y-3">
                     {[
                       { id: 'research', name: '연구용', price: 0 },
-                      { id: 'commercial', name: '상업용', price: 50 },
-                      { id: 'enterprise', name: '엔터프라이즈', price: 200 }
+                      { id: 'commercial', name: '상업용', price: convertSolToLamports(50) },
+                      { id: 'enterprise', name: '엔터프라이즈', price: convertSolToLamports(200) }
                     ].map(plan => (
                       <label key={plan.id} className="flex items-center space-x-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
                         <input type="radio" name="license" className="text-blue-600 focus:ring-blue-500" />
                         <div className="flex-1">
                           <div className="font-medium text-gray-900">{plan.name}</div>
                           <div className="text-sm text-gray-600">
-                            {plan.price === 0 ? '무료' : `${plan.price} SOL`}
+                            {plan.price === 0 ? '무료' : formatLamports(plan.price)}
                           </div>
                         </div>
                       </label>

@@ -1,5 +1,6 @@
 import React from 'react';
 import { Filter, X } from 'lucide-react';
+import { convertSolToLamports, formatLamports, lamportsToSol } from '../../utils/currency';
 
 export const FilterBar = ({
   filters,
@@ -86,14 +87,17 @@ export const FilterBar = ({
               type="range"
               min="0"
               max="1000"
-              value={filters.priceRange[1]}
-              onChange={(e) => onFiltersChange({
-                ...filters,
-                priceRange: [0, Number(e.target.value)]
-              })}
+              value={lamportsToSol(filters.priceRange[1])}
+              onChange={(e) => {
+                const solValue = Number(e.target.value);
+                onFiltersChange({
+                  ...filters,
+                  priceRange: [0, convertSolToLamports(solValue)]
+                });
+              }}
               className="w-24 accent-blue-600"
             />
-            <span className="text-xs text-gray-600 min-w-[60px]">~{filters.priceRange[1]} SOL</span>
+            <span className="text-xs text-gray-600 min-w-[60px]">~{formatLamports(filters.priceRange[1])}</span>
           </div>
         </div>
 
@@ -123,7 +127,7 @@ export const FilterBar = ({
               search: filters.search,
               modality: [],
               license: [],
-              priceRange: [0, 1000],
+              priceRange: [0, convertSolToLamports(1000)],
               minPerformance: 0
             })}
             className="flex items-center space-x-1 px-3 py-1.5 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"

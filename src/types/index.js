@@ -17,7 +17,7 @@ export const PricingType = {
 };
 
 export const Currency = {
-  SOL: 'SOL'
+  LAMPORTS: 'LAMPORTS'
 };
 
 export const UserRole = {

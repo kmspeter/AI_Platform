@@ -46,6 +46,7 @@ import { FilterBar } from '../components/market/FilterBar';
 import { ModelCard } from '../components/market/ModelCard';
 import { ComparisonBar } from '../components/market/ComparisonBar';
 import { ComparisonOverlay } from '../components/market/ComparisonOverlay';
+import { convertSolToLamports } from '../utils/currency';
 
 // API 서비스 함수
 const apiService = {
@@ -113,8 +114,8 @@ const apiService = {
         license: licenseInfo.primary,
         pricing: {
           type: defaultPlan.price > 0 ? 'paid' : 'free',
-          amount: defaultPlan.price,
-          currency: 'SOL',
+          amount: convertSolToLamports(defaultPlan.price),
+          currency: 'LAMPORTS',
           billingType: defaultPlan.billingType,
           planId: defaultPlan.id,
           planName: defaultPlan.name
@@ -144,7 +145,7 @@ const apiService = {
         creator: 'Unknown',
         modality: 'text',
         license: 'unknown',
-        pricing: { type: 'free', amount: 0, currency: 'SOL' },
+        pricing: { type: 'free', amount: 0, currency: 'LAMPORTS' },
         metrics: {},
         downloads: 0,
         tags: [],
@@ -163,7 +164,7 @@ export const Market = () => {
     search: '',
     modality: [],
     license: [],
-    priceRange: [0, 1000],
+    priceRange: [0, convertSolToLamports(1000)],
     minPerformance: 0
   });
   const [showAdvanced, setShowAdvanced] = useState(false);

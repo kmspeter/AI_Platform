@@ -1,3 +1,5 @@
+import { convertSolToLamports } from './currency';
+
 export const mockModels = [
   {
     id: '1',
@@ -8,7 +10,7 @@ export const mockModels = [
     description: '최신 대화형 AI 모델',
     modality: 'LLM',
     license: '상업용',
-    pricing: { type: 'paid', amount: 20, currency: 'SOL' },
+    pricing: { type: 'paid', amount: convertSolToLamports(20), currency: 'LAMPORTS' },
     metrics: { mmlu: 87, hellaswag: 92, arc: 85, truthfulqa: 78 },
     tags: ['대화', '추론', '코딩'],
     createdAt: '2024-01-15'
@@ -22,7 +24,7 @@ export const mockModels = [
     description: '안전하고 도움이 되는 AI',
     modality: 'LLM',
     license: '연구용',
-    pricing: { type: 'paid', amount: 15, currency: 'SOL' },
+    pricing: { type: 'paid', amount: convertSolToLamports(15), currency: 'LAMPORTS' },
     metrics: { mmlu: 85, hellaswag: 88, arc: 82, truthfulqa: 85 },
     tags: ['안전성', '추론', '창작'],
     createdAt: '2024-01-20'
@@ -36,7 +38,7 @@ export const mockModels = [
     description: '고품질 이미지 생성 AI',
     modality: '이미지',
     license: '상업용',
-    pricing: { type: 'paid', amount: 25, currency: 'SOL' },
+    pricing: { type: 'paid', amount: convertSolToLamports(25), currency: 'LAMPORTS' },
     metrics: { fid: 95, inception_score: 89, clip_score: 92 },
     tags: ['이미지', '생성', '예술'],
     createdAt: '2024-01-10'
@@ -64,7 +66,7 @@ export const mockModels = [
     description: '고해상도 이미지 생성',
     modality: '이미지',
     license: '상업용',
-    pricing: { type: 'paid', amount: 10, currency: 'SOL' },
+    pricing: { type: 'paid', amount: convertSolToLamports(10), currency: 'LAMPORTS' },
     metrics: { fid: 88, inception_score: 85, clip_score: 87 },
     tags: ['이미지', '고해상도', '예술'],
     createdAt: '2024-01-05'
@@ -78,7 +80,7 @@ export const mockModels = [
     description: '이미지 이해 및 분석',
     modality: 'VLM',
     license: '상업용',
-    pricing: { type: 'paid', amount: 30, currency: 'SOL' },
+    pricing: { type: 'paid', amount: convertSolToLamports(30), currency: 'LAMPORTS' },
     metrics: { mmlu: 85, visual_qa: 92, vqav2: 89 },
     tags: ['멀티모달', '이미지분석', '텍스트'],
     createdAt: '2024-01-12'
@@ -106,7 +108,7 @@ export const mockModels = [
     description: '코드 생성 전문 모델',
     modality: 'LLM',
     license: '상업용',
-    pricing: { type: 'paid', amount: 18, currency: 'SOL' },
+    pricing: { type: 'paid', amount: convertSolToLamports(18), currency: 'LAMPORTS' },
     metrics: { humaneval: 91, mbpp: 88, codexeval: 85 },
     tags: ['코딩', '프로그래밍', '개발'],
     createdAt: '2024-01-01'
@@ -163,7 +165,7 @@ export const mockAuditEvents = [
     wallet: '0x5678...9012',
     eventType: 'payment',
     action: '모델 구매',
-    details: { modelId: 'claude-3-opus', amount: 15, currency: 'SOL' },
+    details: { modelId: 'claude-3-opus', amount: convertSolToLamports(15), currency: 'LAMPORTS' },
     ipAddress: '192.168.1.101',
     userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
     txHash: '0xabc123def456...'
@@ -325,13 +327,13 @@ export const generateMonthlyRevenueData = () => {
     const baseRevenue = 3000;
     const growth = i * 300;
     const variation = Math.sin(i / 2) * 800 + Math.random() * 500;
-    const revenue = Math.max(0, baseRevenue + growth + variation);
+    const revenueSol = Math.max(0, baseRevenue + growth + variation);
 
     data.push({
       month: months[monthIndex],
-      revenue: parseFloat(revenue.toFixed(2)),
-      sales: Math.floor(revenue / 50),
-      downloads: Math.floor(revenue / 20)
+      revenue: convertSolToLamports(revenueSol),
+      sales: Math.floor(revenueSol / 50),
+      downloads: Math.floor(revenueSol / 20)
     });
   }
 

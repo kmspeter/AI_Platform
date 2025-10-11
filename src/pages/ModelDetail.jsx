@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { cachedFetch } from '../utils/apiCache';
 import { resolveApiUrl } from '../config/api';
+import { convertSolToLamports, formatLamports } from '../utils/currency';
 import {
   extractPricingPlans,
   MODEL_DEFAULT_THUMBNAIL,
@@ -663,7 +664,9 @@ export const ModelDetail = () => {
                       <div className="flex-1">
                         <div className="font-semibold text-gray-900">{plan.name}</div>
                         <div className="text-sm text-gray-600 mb-3">
-                          {plan.price === 0 ? '무료' : `${plan.price} SOL`}
+                          {Number(plan.price) === 0
+                            ? '무료'
+                            : formatLamports(convertSolToLamports(plan.price))}
                         </div>
                         {plan.billingType && (
                           <div className="text-xs text-gray-500 mb-2">과금 방식: {formatBillingType(plan.billingType)}</div>
@@ -698,7 +701,11 @@ export const ModelDetail = () => {
                 <div className="mt-6 pt-4 border-t border-gray-200">
                   <div className="text-sm text-gray-600 mb-2">예상 비용</div>
                   <div className="text-2xl font-bold text-gray-900">
-                    {model.pricing.plans.find(p => p.id === selectedPlan)?.price || 0} SOL
+                    {formatLamports(
+                      convertSolToLamports(
+                        model.pricing.plans.find(p => p.id === selectedPlan)?.price || 0
+                      )
+                    )}
                   </div>
                 </div>
 
