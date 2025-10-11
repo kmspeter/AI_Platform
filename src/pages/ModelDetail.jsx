@@ -164,7 +164,7 @@ const modelDetailService = {
         })
       : [];
 
-    const hasIntegrityInfo = Boolean(targetModel.cidRoot || targetModel.checksumRoot || targetModel.onchainTx);
+    const hasIntegrityInfo = Boolean(targetModel.cidRoot || targetModel.onchainTx);
 
     // API 응답을 컴포넌트에서 사용하는 형태로 변환
     return {
@@ -194,7 +194,6 @@ const modelDetailService = {
       compliance: targetModel.compliance || '',
       integrity: {
         cid: targetModel.cidRoot || '',
-        checksum: targetModel.checksumRoot || '',
         txHash: targetModel.onchainTx || '',
         verified: hasIntegrityInfo,
         storage: targetModel.storage || '제공되지 않음',
@@ -917,20 +916,6 @@ export const ModelDetail = () => {
                           className="text-gray-400 hover:text-gray-600"
                         >
                           {copiedHash === 'tx' ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                  {model.integrity.checksum && (
-                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                      <span className="text-sm font-medium text-gray-700">체크섬</span>
-                      <div className="flex items-center space-x-2">
-                        <code className="text-sm text-gray-900">{model.integrity.checksum}</code>
-                        <button
-                          onClick={() => copyToClipboard(model.integrity.checksum, 'checksum')}
-                          className="text-gray-400 hover:text-gray-600"
-                        >
-                          {copiedHash === 'checksum' ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
                         </button>
                       </div>
                     </div>
