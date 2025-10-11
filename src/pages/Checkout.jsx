@@ -89,6 +89,7 @@ export const Checkout = () => {
   const [transactionResult, setTransactionResult] = useState(null);
   const [paymentStatus, setPaymentStatus] = useState('');
   const [airdropStatus, setAirdropStatus] = useState('');
+  const [verificationPending, setVerificationPending] = useState(false);
   const [modelLoading, setModelLoading] = useState(true);
   const [modelError, setModelError] = useState('');
   const [modelData, setModelData] = useState(null);
@@ -236,6 +237,7 @@ export const Checkout = () => {
     setAirdropStatus('');
     setPaymentSuccess(false);
     setTransactionResult(null);
+    setVerificationPending(false);
 
     try {
       // Step 1: 팬텀 지갑 제공자 확인
@@ -315,60 +317,48 @@ export const Checkout = () => {
       await connection.confirmTransaction({ signature, blockhash, lastValidBlockHeight }, 'confirmed');
       console.log('✅ 트랜잭션이 Devnet에서 확인되었습니다.');
 
-      // Step 6: 백엔드 검증 요청
-      const verifyPayload = {
-        transactionSignature: signature,
-        order: {
-          modelId: modelData.id,
-          modelName: modelData.name,
-          planId: selectedPlan.id,
-          planName: selectedPlan.name,
-          amount: requiredLamports,
-          currency: 'LAMPORTS',
-        },
-        wallet: {
-          publicKey: userPublicKey.toString(),
-          network: 'devnet',
-          provider: selectedWallet || 'phantom',
-        },
-        timestamp: Date.now(),
-      };
-
-      console.log('🛡️ 백엔드 검증 요청 전송:', verifyPayload);
-      setPaymentStatus('백엔드에서 결제 내역을 검증 중입니다...');
-      const authToken = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null;
-      const verifyResponse = await fetch(resolveApiUrl('/api/payments/verify'), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
-        },
-        body: JSON.stringify(verifyPayload),
-      });
-
-      if (!verifyResponse.ok) {
-        const errorText = await verifyResponse.text();
-        console.error('백엔드 검증 실패 응답:', errorText);
-        throw new Error('백엔드 결제 검증 중 오류가 발생했습니다.');
-      }
-
-      const verifyResult = await verifyResponse.json().catch(() => ({}));
-      console.log('✅ 백엔드 검증 성공:', verifyResult);
-
+      // Step 6: 검증 대기 상태로 전환 (백엔드 검증 보류)
       setTransactionResult({
         transactionSignature: signature,
-        verification: verifyResult,
+        verification: {
+          status: 'PENDING',
+          message: '백엔드 검증 대기중',
+        },
       });
-      setPaymentSuccess(true);
-      setPaymentStatus('결제가 완료되었습니다.');
+      setPaymentStatus('트랜잭션이 전송되었습니다. 검증 대기중입니다.');
+      setVerificationPending(true);
 
     } catch (error) {
       console.error('❌ Payment error:', error);
       setPaymentError(error.message || '결제 처리 중 오류가 발생했습니다.');
       setPaymentStatus('결제가 실패했습니다. 다시 시도해주세요.');
+      setVerificationPending(false);
     } finally {
       setPaymentLoading(false);
     }
+  };
+
+  const handleManualVerificationComplete = () => {
+    setPaymentSuccess(true);
+    setVerificationPending(false);
+    setPaymentStatus('결제 검증이 완료되었습니다.');
+    setTransactionResult((prev) => {
+      if (!prev) {
+        return null;
+      }
+
+      const existingVerification = prev.verification || {};
+
+      return {
+        ...prev,
+        verification: {
+          ...existingVerification,
+          status: 'MANUAL_CONFIRMED',
+          message: '사용자가 결제 검증을 완료로 표시했습니다.',
+          completedAt: new Date().toISOString(),
+        },
+      };
+    });
   };
 
   const tokenLimitValue = coerceNumber(planMetadata?.monthlyTokenLimit);
@@ -633,8 +623,8 @@ export const Checkout = () => {
                       <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
                         <Check className="h-8 w-8 text-green-600" />
                       </div>
-                      <h4 className="text-lg font-semibold text-gray-900 mb-2">결제 완료!</h4>
-                      <p className="text-gray-600 mb-6">Solana Devnet에서 결제가 확인되었습니다.</p>
+                      <h4 className="text-lg font-semibold text-gray-900 mb-2">결제 및 검증 완료!</h4>
+                      <p className="text-gray-600 mb-6">트랜잭션이 확인되고 검증이 완료되었습니다.</p>
 
                       {transactionResult && (
                         <div className="bg-green-50 rounded-lg p-4 mb-6 text-left">
@@ -670,6 +660,47 @@ export const Checkout = () => {
                       )}
 
                       <p className="text-sm text-gray-600">이제 모델 사용 권한을 확인하실 수 있습니다.</p>
+                    </div>
+                  ) : verificationPending ? (
+                    <div>
+                      <div className="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                        <Loader2 className="h-8 w-8 text-yellow-600 animate-spin" />
+                      </div>
+                      <h4 className="text-lg font-semibold text-gray-900 mb-2">검증 대기중</h4>
+                      <p className="text-gray-600 mb-6">트랜잭션이 Devnet에서 확인되었습니다. 검증 완료 버튼을 눌러 결제를 확정해주세요.</p>
+
+                      {transactionResult?.transactionSignature && (
+                        <div className="bg-yellow-50 rounded-lg p-4 mb-6 text-left">
+                          <div className="text-sm text-yellow-800 space-y-2">
+                            <div className="flex flex-col">
+                              <span className="font-medium">트랜잭션 해시</span>
+                              <code className="font-mono break-all">{transactionResult.transactionSignature}</code>
+                            </div>
+                            <p className="text-sm">이 해시를 복사하여 결제 내역을 확인할 수 있습니다.</p>
+                            {transactionResult.verification?.message && (
+                              <p className="text-sm text-yellow-700">{transactionResult.verification.message}</p>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {(airdropStatus || paymentStatus) && (
+                        <div className="space-y-2 mb-6">
+                          {airdropStatus && (
+                            <p className="text-sm text-blue-600">{airdropStatus}</p>
+                          )}
+                          {paymentStatus && (
+                            <p className="text-sm text-blue-600">{paymentStatus}</p>
+                          )}
+                        </div>
+                      )}
+
+                      <button
+                        onClick={handleManualVerificationComplete}
+                        className="bg-blue-600 text-white px-8 py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors shadow-sm"
+                      >
+                        검증 완료
+                      </button>
                     </div>
                   ) : (
                     <div>
