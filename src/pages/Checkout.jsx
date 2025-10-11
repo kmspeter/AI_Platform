@@ -337,6 +337,22 @@ export const Checkout = () => {
       console.log('🛡️ 백엔드 검증 요청 전송:', verifyPayload);
       setPaymentStatus('백엔드에서 결제 내역을 검증 중입니다...');
       const authToken = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null;
+      const isDemoAuthentication = !authToken || authToken === 'demo-token';
+
+      if (isDemoAuthentication) {
+        console.warn('Skipping backend verification because no valid auth token was found.');
+        setPaymentStatus('결제가 완료되었습니다. (데모 모드: 백엔드 검증 생략)');
+        setTransactionResult({
+          transactionSignature: signature,
+          verification: {
+            skipped: true,
+            reason: 'AUTH_TOKEN_MISSING',
+          },
+        });
+        setPaymentSuccess(true);
+        return;
+      }
+
       const verifyResponse = await fetch(resolveApiUrl('/api/payments/verify'), {
         method: 'POST',
         headers: {
@@ -345,6 +361,14 @@ export const Checkout = () => {
         },
         body: JSON.stringify(verifyPayload),
       });
+
+      if (verifyResponse?.redirected && verifyResponse.url?.includes('accounts.google.com')) {
+        throw new Error('결제 검증을 위해 Google 로그인이 필요합니다. 로그인 페이지에서 Google 계정으로 다시 로그인해주세요.');
+      }
+
+      if (verifyResponse?.type === 'opaqueredirect') {
+        throw new Error('결제 검증이 차단되었습니다. Google 로그인이 필요한지 확인해주세요.');
+      }
 
       if (!verifyResponse.ok) {
         const errorText = await verifyResponse.text();
