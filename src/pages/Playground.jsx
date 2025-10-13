@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Send, Settings, Copy, Play, Trash2, RefreshCw } from 'lucide-react';
 
 // 배포용 API 엔드포인트 (ngrok 또는 고정 도메인)
-const API_BASE = 'https://3af0d76d5950.ngrok-free.app';
+const API_BASE = 'https://b31a1ae42106.ngrok-free.app';
 
 export const Playground = () => {
   const [messages, setMessages] = useState([]);
