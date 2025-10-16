@@ -1,11 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useLocation, useParams, useSearchParams } from 'react-router-dom';
 import { Wallet, Check, AlertCircle, CreditCard, Loader2 } from 'lucide-react';
 import { Connection, LAMPORTS_PER_SOL, PublicKey, SystemProgram, Transaction } from '@solana/web3.js';
 import { phantomWallet } from '../utils/phantomWallet';
 import { cachedFetch } from '../utils/apiCache';
 import { resolveApiUrl } from '../config/api';
-import { extractPricingPlans, normalizeLicense, selectDefaultPlan } from '../utils/modelTransformers';
+import { extractPricingPlans, normalizeLicense, selectDefaultPlan, MODEL_DEFAULT_THUMBNAIL } from '../utils/modelTransformers';
 import { convertSolToLamports, formatLamports } from '../utils/currency';
 
 const extractModelResponse = (data) => {
@@ -77,8 +77,11 @@ const SOLANA_ENDPOINT = 'https://api.devnet.solana.com';
 
 export const Checkout = () => {
   const { id } = useParams();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
-  const planParam = searchParams.get('plan') || 'standard';
+  const checkoutState = location.state || {};
+  const hasPreloadedModel = Boolean(checkoutState?.model);
+  const planParam = searchParams.get('plan') || checkoutState.selectedPlanId || 'standard';
   const [currentStep, setCurrentStep] = useState(1);
   const [selectedWallet, setSelectedWallet] = useState('');
   const [agreedToTerms, setAgreedToTerms] = useState(false);
@@ -90,10 +93,29 @@ export const Checkout = () => {
   const [verificationStatus, setVerificationStatus] = useState('idle');
   const [paymentStatus, setPaymentStatus] = useState('');
   const [airdropStatus, setAirdropStatus] = useState('');
-  const [modelLoading, setModelLoading] = useState(true);
+  const [modelLoading, setModelLoading] = useState(() => !hasPreloadedModel);
   const [modelError, setModelError] = useState('');
-  const [modelData, setModelData] = useState(null);
-  const [selectedPlanId, setSelectedPlanId] = useState(planParam);
+  const [modelData, setModelData] = useState(() => {
+    if (!checkoutState?.model) {
+      return null;
+    }
+
+    const pricingPlans = Array.isArray(checkoutState.pricingPlans)
+      ? checkoutState.pricingPlans
+      : (checkoutState.model.pricingPlans || []);
+
+    return {
+      id: checkoutState.model.id?.toString() || id?.toString(),
+      name: checkoutState.model.name || 'Unknown Model',
+      creator: checkoutState.model.creator || 'Unknown Creator',
+      versionName: checkoutState.model.versionName || '1.0.0',
+      thumbnail: checkoutState.model.thumbnail || `${MODEL_DEFAULT_THUMBNAIL}?auto=compress&cs=tinysrgb&w=100`,
+      pricingPlans,
+      licenseTags: checkoutState.licenseTags || checkoutState.model.licenseTags || [],
+    };
+  });
+  const hasPricingPlans = Boolean(modelData?.pricingPlans?.length);
+  const [selectedPlanId, setSelectedPlanId] = useState(() => checkoutState.selectedPlanId || planParam);
   const [backendEndpoint, setBackendEndpoint] = useState('');
 
   const steps = [
@@ -103,15 +125,19 @@ export const Checkout = () => {
   ];
 
   useEffect(() => {
-    setSelectedPlanId(planParam);
-  }, [planParam]);
+    if (planParam && planParam !== selectedPlanId) {
+      setSelectedPlanId(planParam);
+    }
+  }, [planParam, selectedPlanId]);
 
   useEffect(() => {
     let isCancelled = false;
 
     const loadModel = async () => {
       try {
-        setModelLoading(true);
+        if (!hasPreloadedModel) {
+          setModelLoading(true);
+        }
         setModelError('');
 
         const apiUrl = resolveApiUrl(`/api/models?id=${id}`);
@@ -154,6 +180,7 @@ export const Checkout = () => {
           name: target.name || 'Unknown Model',
           creator: target.uploader || 'Unknown Creator',
           versionName: target.versionName || '1.0.0',
+          thumbnail: target.thumbnail || `${MODEL_DEFAULT_THUMBNAIL}?auto=compress&cs=tinysrgb&w=100`,
           pricingPlans,
           licenseTags: licenseInfo.labels,
         });
@@ -169,12 +196,19 @@ export const Checkout = () => {
       }
     };
 
+    if (hasPreloadedModel && hasPricingPlans) {
+      setModelLoading(false);
+      return () => {
+        isCancelled = true;
+      };
+    }
+
     loadModel();
 
     return () => {
       isCancelled = true;
     };
-  }, [id]);
+  }, [id, hasPreloadedModel, hasPricingPlans]);
 
   useEffect(() => {
     if (!modelData?.pricingPlans?.length) {
@@ -443,7 +477,7 @@ export const Checkout = () => {
             <div className="space-y-4 mb-6">
               <div className="flex items-center space-x-3">
                 <img
-                  src="https://images.pexels.com/photos/8386440/pexels-photo-8386440.jpeg?auto=compress&cs=tinysrgb&w=100"
+                  src={modelData?.thumbnail || `${MODEL_DEFAULT_THUMBNAIL}?auto=compress&cs=tinysrgb&w=100`}
                   alt={modelData?.name || 'Model thumbnail'}
                   className="w-12 h-12 rounded-lg object-cover ring-1 ring-gray-200"
                 />

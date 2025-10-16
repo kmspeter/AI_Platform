@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { cachedFetch } from '../utils/apiCache';
 import { resolveApiUrl } from '../config/api';
@@ -231,6 +231,37 @@ export const ModelDetail = () => {
   const [selectedPlan, setSelectedPlan] = useState('');
   const [showAllMetrics, setShowAllMetrics] = useState(false);
   const [copiedHash, setCopiedHash] = useState('');
+  const selectedPlanData = useMemo(() => {
+    if (!model?.pricing?.plans?.length) {
+      return null;
+    }
+
+    return model.pricing.plans.find(plan => plan.id === selectedPlan) || model.pricing.plans[0];
+  }, [model, selectedPlan]);
+  const checkoutPlanId = selectedPlanData?.id || selectedPlan || '';
+  const checkoutPlanQuery = checkoutPlanId || 'standard';
+  const checkoutState = useMemo(() => {
+    if (!model) {
+      return null;
+    }
+
+    const plans = Array.isArray(model.pricing?.plans) ? model.pricing.plans : [];
+
+    return {
+      model: {
+        id: model.id,
+        name: model.name,
+        creator: model.creator,
+        versionName: model.versionName,
+        thumbnail: model.thumbnail,
+        licenseTags: model.licenseTags,
+      },
+      pricingPlans: plans,
+      licenseTags: model.licenseTags,
+      selectedPlanId: checkoutPlanId || plans[0]?.id || '',
+      selectedPlan: selectedPlanData,
+    };
+  }, [model, selectedPlanData, checkoutPlanId]);
 
   const getSampleTypeLabel = (type) => {
     switch (type) {
@@ -469,7 +500,8 @@ export const ModelDetail = () => {
               <span>체험</span>
             </Link>
             <Link
-              to={`/checkout/${id}?plan=${selectedPlan}`}
+              to={`/checkout/${id}?plan=${checkoutPlanQuery}`}
+              state={checkoutState || undefined}
               className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
             >
               <ShoppingCart className="h-4 w-4" />
@@ -710,7 +742,8 @@ export const ModelDetail = () => {
                 </div>
 
                 <Link
-                  to={`/checkout/${id}?plan=${selectedPlan}`}
+                  to={`/checkout/${id}?plan=${checkoutPlanQuery}`}
+                  state={checkoutState || undefined}
                   className="w-full mt-6 bg-blue-600 text-white px-4 py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors text-center block shadow-sm"
                 >
                   구매로 이동
