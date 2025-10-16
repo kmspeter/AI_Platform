@@ -851,16 +851,6 @@ export const Checkout = () => {
                         </div>
                       </div>
 
-                      <div className="mb-6 text-left space-y-1">
-                        <span className="text-sm font-medium text-gray-700">검증 백엔드 엔드포인트</span>
-                        <div className="text-sm break-all text-gray-700 p-3 bg-gray-50 border border-gray-200 rounded-md">
-                          {BACKEND_VERIFICATION_ENDPOINT || '미설정'}
-                        </div>
-                        <p className="text-xs text-gray-500">
-                          Checkout 컴포넌트 상단의 BACKEND_VERIFICATION_ENDPOINT 상수를 업데이트하여 엔드포인트를 설정하세요.
-                        </p>
-                      </div>
-
                       {(airdropStatus || paymentStatus) && (
                         <div className="space-y-2 mb-6">
                           {airdropStatus && (
