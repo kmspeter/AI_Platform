@@ -74,7 +74,7 @@ const formatTokenLimit = (value) => {
 
 const MERCHANT_WALLET_ADDRESS = 'Ctsc4RLun5Rrv8pLSidD8cpYKWWdsT1sNUqpA7rv4YLN';
 const SOLANA_ENDPOINT = 'https://api.devnet.solana.com';
-const BACKEND_VERIFICATION_ENDPOINT = 'https://api.example.com/verify';
+const BACKEND_VERIFICATION_ENDPOINT = resolveApiUrl('/api/payments/verify');
 
 export const Checkout = () => {
   const { id } = useParams();
@@ -234,6 +234,50 @@ export const Checkout = () => {
   const totalLamports = planPriceLamports + platformFeeLamports + networkFeeEstimateLamports;
   const rights = selectedPlan?.rights?.length ? selectedPlan.rights : (modelData?.licenseTags || []);
   const planMetadata = selectedPlan?.metadata || {};
+
+  const pricingPayload = useMemo(() => {
+    if (!modelData?.pricingPlans?.length) {
+      return {};
+    }
+
+    return modelData.pricingPlans.reduce((acc, plan) => {
+      if (!plan?.id) {
+        return acc;
+      }
+
+      const priceValue = coerceNumber(plan.price);
+      const metadata = plan.metadata || {};
+      const planRights = Array.isArray(plan.rights) && plan.rights.length > 0
+        ? plan.rights
+        : (modelData?.licenseTags && modelData.licenseTags.length > 0 ? modelData.licenseTags : []);
+
+      const serializedPlan = {
+        price: priceValue != null ? priceValue : 0,
+        description: plan.name || plan.id,
+        billingType: plan.billingType || '',
+      };
+
+      const tokenLimit = coerceNumber(metadata.monthlyTokenLimit);
+      if (tokenLimit != null) {
+        serializedPlan.monthlyTokenLimit = tokenLimit;
+      }
+
+      const generationLimit = coerceNumber(metadata.monthlyGenerationLimit);
+      if (generationLimit != null) {
+        serializedPlan.monthlyGenerationLimit = generationLimit;
+      }
+
+      const requestLimit = coerceNumber(metadata.monthlyRequestLimit);
+      if (requestLimit != null) {
+        serializedPlan.monthlyRequestLimit = requestLimit;
+      }
+
+      serializedPlan.rights = planRights;
+
+      acc[plan.id] = serializedPlan;
+      return acc;
+    }, {});
+  }, [modelData]);
 
   const canProceedToPayment = agreedToTerms && agreedToPrivacy && !!selectedPlan;
   const walletStatus = phantomWallet.getConnectionStatus();
@@ -400,15 +444,10 @@ export const Checkout = () => {
         name: modelData.name,
         buyer: buyerName,
         versionName: modelData.versionName || '1.0.0',
-        pricing: {
-          [selectedPlan.id]: {
-            price: selectedPlan.price,
-            description: selectedPlan.name,
-            billingType: selectedPlan.billingType || '',
-            monthlyTokenLimit: selectedPlan.metadata?.monthlyTokenLimit ?? null,
-            rights: rights && rights.length > 0 ? rights : [],
-          },
-        },
+        plan: selectedPlan.id,
+        pricing: selectedPlan?.id && pricingPayload[selectedPlan.id]
+          ? { [selectedPlan.id]: pricingPayload[selectedPlan.id] }
+          : pricingPayload,
         onchainTx: signature,
       };
 
