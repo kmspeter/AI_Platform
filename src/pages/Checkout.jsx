@@ -396,7 +396,7 @@ export const Checkout = () => {
       await connection.confirmTransaction({ signature, blockhash, lastValidBlockHeight }, 'confirmed');
       console.log('✅ 트랜잭션이 Devnet에서 확인되었습니다.');
 
-      // Step 6: 검증 대기 상태로 전환
+      // Step 6: 백엔드 검증 요청
       const orderDetails = {
         modelId: modelData.id,
         modelName: modelData.name,
@@ -451,12 +451,7 @@ export const Checkout = () => {
         onchainTx: signature,
       };
 
-      console.log('⏳ 백엔드 검증 대기 상태로 전환:', {
-        transactionSignature: signature,
-        order: orderDetails,
-        wallet: walletDetails,
-      });
-      console.log('⏳ 백엔드 검증 대기 상태로 전환');
+      console.log('⏳ 백엔드 검증 시작:');
       console.log('📤 백엔드로 전송할 데이터:');
       console.log(JSON.stringify(verificationPayload, null, 2));
 
@@ -474,9 +469,88 @@ export const Checkout = () => {
           timestamp: Date.now(),
         },
       });
+
       setVerificationStatus('pending');
       setPaymentSuccess(true);
-      setPaymentStatus('트랜잭션이 완료되었습니다. 검증 대기 중입니다.');
+      setPaymentStatus('트랜잭션이 완료되었습니다. 백엔드 검증 중입니다.');
+
+      // 백엔드 검증 요청
+      try {
+        console.log('🔄 백엔드 검증 요청 시작...');
+        setPaymentStatus('백엔드에서 결제를 검증 중입니다...');
+        
+        // 1분 타임아웃 설정
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => {
+            reject(new Error('백엔드 검증 요청 시간 초과 (60초)'));
+          }, 60 * 1000);
+        });
+
+        const fetchPromise = fetch(BACKEND_VERIFICATION_ENDPOINT, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          body: JSON.stringify(verificationPayload),
+        });
+
+        const verificationResponse = await Promise.race([fetchPromise, timeoutPromise]);
+
+        if (!verificationResponse.ok) {
+          const errorData = await verificationResponse.json().catch(() => ({}));
+          throw new Error(
+            errorData.message || 
+            `백엔드 검증 실패: ${verificationResponse.status} ${verificationResponse.statusText}`
+          );
+        }
+
+        const verificationData = await verificationResponse.json();
+        console.log('✅ 백엔드 검증 성공:', verificationData);
+
+        // 검증 완료 상태로 업데이트
+        setVerificationStatus('completed');
+        setPaymentStatus('백엔드 검증이 완료되었습니다.');
+        setTransactionResult((prev) => {
+          const existingResult = prev || {};
+          const previousVerification = existingResult.verification || {};
+
+          return {
+            ...existingResult,
+            verification: {
+              ...previousVerification,
+              status: 'COMPLETED',
+              message: '백엔드 검증이 완료되었습니다.',
+              completedAt: Date.now(),
+              backendResponse: verificationData,
+            },
+          };
+        });
+
+      } catch (verificationError) {
+        console.error('❌ 백엔드 검증 오류:', verificationError);
+        setVerificationStatus('failed');
+        setPaymentStatus('백엔드 검증 중 오류가 발생했습니다.');
+        setTransactionResult((prev) => {
+          const existingResult = prev || {};
+          const previousVerification = existingResult.verification || {};
+
+          return {
+            ...existingResult,
+            verification: {
+              ...previousVerification,
+              status: 'FAILED',
+              message: verificationError.message || '백엔드 검증 중 오류가 발생했습니다.',
+              failedAt: Date.now(),
+              error: verificationError.message,
+            },
+          };
+        });
+
+        // 검증 실패 후 재시도 옵션을 위해 상태를 다시 pending으로 설정
+        setVerificationStatus('pending');
+        setPaymentError(verificationError.message || '백엔드 검증 중 오류가 발생했습니다.');
+      }
 
     } catch (error) {
       console.error('❌ Payment error:', error);
