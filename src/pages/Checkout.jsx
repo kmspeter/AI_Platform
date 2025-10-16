@@ -369,10 +369,14 @@ export const Checkout = () => {
         provider: selectedWallet || 'phantom',
       };
 
+      // Google 로그인 이메일에서 @ 앞 부분 추출
+      const googleEmail = localStorage.getItem('userEmail') || '';
+      const buyerName = googleEmail.split('@')[0] || walletDetails.publicKey;
+
       const verificationPayload = {
         id: modelData.id,
         name: modelData.name,
-        buyer: walletDetails.publicKey,
+        buyer: buyerName,
         versionName: modelData.versionName || '1.0.0',
         pricing: {
           [selectedPlan.id]: {
