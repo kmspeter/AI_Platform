@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useLocation, useParams, useSearchParams } from 'react-router-dom';
-import { Wallet, Check, AlertCircle, CreditCard, Loader2 } from 'lucide-react';
+import { Wallet, Check, AlertCircle, CreditCard, Loader2, XCircle } from 'lucide-react';
 import { Connection, LAMPORTS_PER_SOL, PublicKey, SystemProgram, Transaction } from '@solana/web3.js';
 import { phantomWallet } from '../utils/phantomWallet';
 import { cachedFetch } from '../utils/apiCache';
@@ -506,11 +506,41 @@ export const Checkout = () => {
         }
 
         const verificationData = await verificationResponse.json();
-        console.log('✅ 백엔드 검증 성공:', verificationData);
+        console.log('✅ 백엔드 검증 응답:', verificationData);
+
+        if (!verificationData?.success) {
+          const failureStatus = verificationData?.status || 'FAILED';
+          const failureMessage =
+            verificationData?.message ||
+            (failureStatus === 'FAILED'
+              ? '백엔드 검증에서 결제가 실패했습니다.'
+              : `백엔드 검증 실패: ${failureStatus}`);
+
+          setVerificationStatus('failed');
+          setPaymentStatus('백엔드 검증이 실패했습니다.');
+          setTransactionResult((prev) => {
+            const existingResult = prev || {};
+            const previousVerification = existingResult.verification || {};
+
+            return {
+              ...existingResult,
+              verification: {
+                ...previousVerification,
+                status: failureStatus,
+                message: failureMessage,
+                failedAt: Date.now(),
+                backendResponse: verificationData,
+              },
+            };
+          });
+          setPaymentError(failureMessage);
+          return;
+        }
 
         // 검증 완료 상태로 업데이트
         setVerificationStatus('completed');
         setPaymentStatus('백엔드 검증이 완료되었습니다.');
+        setPaymentError('');
         setTransactionResult((prev) => {
           const existingResult = prev || {};
           const previousVerification = existingResult.verification || {};
@@ -592,6 +622,8 @@ export const Checkout = () => {
   const tokenLimitLabel = tokenLimitValue != null ? formatTokenLimit(tokenLimitValue) : null;
   const generationLimitLabel = generationLimitValue != null ? `${generationLimitValue.toLocaleString()} 회` : null;
   const requestLimitLabel = requestLimitValue != null ? `${requestLimitValue.toLocaleString()} 회` : null;
+  const isVerificationCompleted = verificationStatus === 'completed';
+  const isVerificationFailed = verificationStatus === 'failed';
 
   return (
     <div className="flex-1 max-w-6xl mx-auto p-6">
@@ -846,22 +878,34 @@ export const Checkout = () => {
                     <div>
                       <div
                         className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6 ${
-                          verificationStatus === 'completed' ? 'bg-green-100' : 'bg-yellow-100'
+                          isVerificationCompleted
+                            ? 'bg-green-100'
+                            : isVerificationFailed
+                              ? 'bg-red-100'
+                              : 'bg-yellow-100'
                         }`}
                       >
-                        {verificationStatus === 'completed' ? (
+                        {isVerificationCompleted ? (
                           <Check className="h-8 w-8 text-green-600" />
+                        ) : isVerificationFailed ? (
+                          <XCircle className="h-8 w-8 text-red-600" />
                         ) : (
                           <Loader2 className="h-8 w-8 text-yellow-600 animate-spin" />
                         )}
                       </div>
                       <h4 className="text-lg font-semibold text-gray-900 mb-2">
-                        {verificationStatus === 'completed' ? '결제 검증 완료!' : '트랜잭션 완료'}
+                        {isVerificationCompleted
+                          ? '결제 검증 완료!'
+                          : isVerificationFailed
+                            ? '결제 검증 실패'
+                            : '트랜잭션 완료'}
                       </h4>
                       <p className="text-gray-600 mb-6">
-                        {verificationStatus === 'completed'
+                        {isVerificationCompleted
                           ? '백엔드 검증이 완료되어 결제가 확정되었습니다.'
-                          : 'Solana Devnet에서 트랜잭션이 확인되었습니다. 검증 완료 후 결제가 확정됩니다.'}
+                          : isVerificationFailed
+                            ? '백엔드 검증에서 결제가 실패했습니다. 자세한 내용은 아래 정보를 확인하세요.'
+                            : 'Solana Devnet에서 트랜잭션이 확인되었습니다. 검증 완료 후 결제가 확정됩니다.'}
                       </p>
 
                       {transactionResult && (
@@ -904,7 +948,13 @@ export const Checkout = () => {
                             {transactionResult.verification?.status && (
                               <div className="flex flex-col">
                                 <span className="font-medium">검증 상태</span>
-                                <span>{verificationStatus === 'completed' ? '검증 완료' : '검증 대기중'}</span>
+                                <span>
+                                  {isVerificationCompleted
+                                    ? '검증 완료'
+                                    : isVerificationFailed
+                                      ? '검증 실패'
+                                      : '검증 대기중'}
+                                </span>
                               </div>
                             )}
                             {transactionResult.verification?.message && (
@@ -934,6 +984,17 @@ export const Checkout = () => {
                       {verificationStatus === 'completed' && (
                         <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg text-left">
                           <p className="text-sm text-green-800">검증이 완료되어 결제가 확정되었습니다.</p>
+                        </div>
+                      )}
+
+                      {verificationStatus === 'failed' && (
+                        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-left">
+                          <p className="text-sm text-red-800">
+                            백엔드 검증에서 실패 응답을 받았습니다. 문제가 계속되면 관리자에게 문의해주세요.
+                          </p>
+                          {transactionResult?.verification?.message && (
+                            <p className="mt-2 text-xs text-red-700">{transactionResult.verification.message}</p>
+                          )}
                         </div>
                       )}
 
