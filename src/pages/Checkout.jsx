@@ -660,6 +660,7 @@ export const Checkout = () => {
           Accept: 'application/json',
         },
         body: JSON.stringify(payload),
+        credentials: 'include',
       });
 
       const verificationResponse = await Promise.race([fetchPromise, timeoutPromise]);
