@@ -45,14 +45,24 @@ export const AuthProvider = ({ children }) => {
     try {
       setUser(userData);
       setIsAuthenticated(true);
-      
+
       // 새 사용자의 경우 지갑 연결 필요
       if (!userData.wallet?.connected) {
         setNeedsWalletConnection(true);
       }
-      
+
       localStorage.setItem('user', JSON.stringify(userData));
       localStorage.setItem('authToken', token);
+      if (userData?.email) {
+        localStorage.setItem('userEmail', userData.email);
+        const emailPrefix = userData.email.split('@')[0] || '';
+        if (emailPrefix) {
+          localStorage.setItem('userName', emailPrefix);
+        }
+      } else {
+        localStorage.removeItem('userEmail');
+        localStorage.removeItem('userName');
+      }
       return true;
     } catch (error) {
       console.error('Login failed:', error);
@@ -67,6 +77,8 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem('user');
     localStorage.removeItem('authToken');
     localStorage.removeItem('wallet');
+    localStorage.removeItem('userEmail');
+    localStorage.removeItem('userName');
   };
 
   const updateUser = (updatedData) => {
