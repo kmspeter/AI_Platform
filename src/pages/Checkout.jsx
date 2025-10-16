@@ -369,9 +369,31 @@ export const Checkout = () => {
         provider: selectedWallet || 'phantom',
       };
 
-      // Google 로그인 이메일에서 @ 앞 부분 추출
-      const googleEmail = localStorage.getItem('userEmail') || '';
-      const buyerName = googleEmail.split('@')[0] || walletDetails.publicKey;
+      // Google 로그인 시 저장된 이메일/이름 정보에서 buyer 이름 추출
+      let buyerName = walletDetails.publicKey;
+      const storedUserRaw = localStorage.getItem('user');
+      let storedEmail = '';
+      let storedDisplayName = '';
+
+      if (storedUserRaw) {
+        try {
+          const storedUser = JSON.parse(storedUserRaw);
+          storedEmail = typeof storedUser?.email === 'string' ? storedUser.email : '';
+          storedDisplayName = typeof storedUser?.name === 'string' ? storedUser.name : '';
+        } catch (parseError) {
+          console.warn('Failed to parse stored user for buyer info:', parseError);
+        }
+      }
+
+      const googleEmail = storedEmail || localStorage.getItem('userEmail') || '';
+      const emailPrefix = googleEmail.split('@')[0];
+      const storedName = storedDisplayName || localStorage.getItem('userName') || '';
+
+      if (emailPrefix) {
+        buyerName = emailPrefix;
+      } else if (storedName) {
+        buyerName = storedName;
+      }
 
       const verificationPayload = {
         id: modelData.id,
