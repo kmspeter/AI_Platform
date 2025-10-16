@@ -92,6 +92,7 @@ export const Checkout = () => {
   const [paymentSuccess, setPaymentSuccess] = useState(false);
   const [transactionResult, setTransactionResult] = useState(null);
   const [verificationStatus, setVerificationStatus] = useState('idle');
+  const [verificationLoading, setVerificationLoading] = useState(false);
   const [paymentStatus, setPaymentStatus] = useState('');
   const [airdropStatus, setAirdropStatus] = useState('');
   const [modelLoading, setModelLoading] = useState(() => !hasPreloadedModel);
@@ -577,8 +578,6 @@ export const Checkout = () => {
           };
         });
 
-        // 검증 실패 후 재시도 옵션을 위해 상태를 다시 pending으로 설정
-        setVerificationStatus('pending');
         setPaymentError(verificationError.message || '백엔드 검증 중 오류가 발생했습니다.');
       }
 
@@ -613,6 +612,137 @@ export const Checkout = () => {
         },
       };
     });
+  };
+
+  const handleRetryVerification = async () => {
+    if (!paymentSuccess || verificationLoading || verificationStatus !== 'failed') {
+      return;
+    }
+
+    const endpoint = transactionResult?.backend?.endpoint || BACKEND_VERIFICATION_ENDPOINT;
+    const payload = transactionResult?.backend?.payload;
+
+    if (!payload || !endpoint) {
+      setPaymentError('재검증에 필요한 정보가 부족합니다.');
+      return;
+    }
+
+    try {
+      setVerificationLoading(true);
+      setPaymentError('');
+      setPaymentStatus('백엔드에 재검증을 요청하고 있습니다...');
+      setVerificationStatus('pending');
+      setTransactionResult((prev) => {
+        const existingResult = prev || {};
+        const previousVerification = existingResult.verification || {};
+
+        return {
+          ...existingResult,
+          verification: {
+            ...previousVerification,
+            status: 'PENDING_RETRY',
+            message: '백엔드 재검증을 요청 중입니다.',
+            retriedAt: Date.now(),
+          },
+        };
+      });
+
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => {
+          reject(new Error('백엔드 재검증 요청 시간 초과 (60초)'));
+        }, 60 * 1000);
+      });
+
+      const fetchPromise = fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const verificationResponse = await Promise.race([fetchPromise, timeoutPromise]);
+
+      if (!verificationResponse.ok) {
+        const errorData = await verificationResponse.json().catch(() => ({}));
+        throw new Error(
+          errorData.message || `백엔드 검증 실패: ${verificationResponse.status} ${verificationResponse.statusText}`
+        );
+      }
+
+      const verificationData = await verificationResponse.json();
+      console.log('✅ 백엔드 재검증 응답:', verificationData);
+
+      if (!verificationData?.success) {
+        const failureStatus = verificationData?.status || 'FAILED';
+        const failureMessage =
+          verificationData?.message ||
+          (failureStatus === 'FAILED'
+            ? '백엔드 검증에서 결제가 실패했습니다.'
+            : `백엔드 검증 실패: ${failureStatus}`);
+
+        setVerificationStatus('failed');
+        setPaymentStatus('백엔드 검증이 실패했습니다.');
+        setTransactionResult((prev) => {
+          const existingResult = prev || {};
+          const previousVerification = existingResult.verification || {};
+
+          return {
+            ...existingResult,
+            verification: {
+              ...previousVerification,
+              status: failureStatus,
+              message: failureMessage,
+              failedAt: Date.now(),
+              backendResponse: verificationData,
+            },
+          };
+        });
+        setPaymentError(failureMessage);
+        return;
+      }
+
+      setVerificationStatus('completed');
+      setPaymentStatus('백엔드 재검증이 완료되었습니다.');
+      setPaymentError('');
+      setTransactionResult((prev) => {
+        const existingResult = prev || {};
+        const previousVerification = existingResult.verification || {};
+
+        return {
+          ...existingResult,
+          verification: {
+            ...previousVerification,
+            status: 'COMPLETED_RETRY',
+            message: '백엔드 재검증이 완료되었습니다.',
+            completedAt: Date.now(),
+            backendResponse: verificationData,
+          },
+        };
+      });
+    } catch (error) {
+      console.error('❌ 백엔드 재검증 오류:', error);
+      setVerificationStatus('failed');
+      setPaymentStatus('백엔드 재검증 중 오류가 발생했습니다.');
+      setPaymentError(error.message || '백엔드 재검증 중 오류가 발생했습니다.');
+      setTransactionResult((prev) => {
+        const existingResult = prev || {};
+        const previousVerification = existingResult.verification || {};
+
+        return {
+          ...existingResult,
+          verification: {
+            ...previousVerification,
+            status: 'FAILED_RETRY',
+            message: error.message || '백엔드 재검증 중 오류가 발생했습니다.',
+            failedAt: Date.now(),
+          },
+        };
+      });
+    } finally {
+      setVerificationLoading(false);
+    }
   };
 
   const tokenLimitValue = coerceNumber(planMetadata?.monthlyTokenLimit);
@@ -995,6 +1125,16 @@ export const Checkout = () => {
                           {transactionResult?.verification?.message && (
                             <p className="mt-2 text-xs text-red-700">{transactionResult.verification.message}</p>
                           )}
+                          <button
+                            onClick={handleRetryVerification}
+                            disabled={verificationLoading}
+                            className="mt-4 w-full bg-blue-600 text-white px-4 py-2 rounded-md font-medium hover:bg-blue-700 transition-colors disabled:bg-blue-300 disabled:cursor-not-allowed"
+                          >
+                            {verificationLoading ? '재검증 요청 중...' : '재검증 요청'}
+                          </button>
+                          <p className="mt-2 text-xs text-red-600">
+                            동일한 트랜잭션으로 백엔드 검증을 다시 요청합니다.
+                          </p>
                         </div>
                       )}
 
