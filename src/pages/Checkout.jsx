@@ -395,6 +395,9 @@ export const Checkout = () => {
         order: orderDetails,
         wallet: walletDetails,
       });
+      console.log('⏳ 백엔드 검증 대기 상태로 전환');
+      console.log('📤 백엔드로 전송할 데이터:');
+      console.log(JSON.stringify(verificationPayload, null, 2));
 
       setTransactionResult({
         transactionSignature: signature,
