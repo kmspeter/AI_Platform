@@ -722,16 +722,6 @@ export const Checkout = () => {
                           : 'Solana Devnet에서 트랜잭션이 확인되었습니다. 검증 완료 후 결제가 확정됩니다.'}
                       </p>
 
-                      <div className="mb-6 text-left space-y-1">
-                        <span className="text-sm font-medium text-gray-700">검증 백엔드 엔드포인트</span>
-                        <div className="text-sm break-all text-gray-700 p-3 bg-gray-50 border border-gray-200 rounded-md">
-                          {BACKEND_VERIFICATION_ENDPOINT || '미설정'}
-                        </div>
-                        <p className="text-xs text-gray-500">
-                          Checkout 컴포넌트 상단의 BACKEND_VERIFICATION_ENDPOINT 상수를 업데이트하여 엔드포인트를 설정하세요.
-                        </p>
-                      </div>
-
                       {transactionResult && (
                         <div
                           className={`rounded-lg p-4 mb-6 text-left ${
@@ -767,14 +757,6 @@ export const Checkout = () => {
                               <div className="flex flex-col">
                                 <span className="font-medium">지갑 주소</span>
                                 <code className="font-mono break-all">{transactionResult.wallet.publicKey}</code>
-                              </div>
-                            )}
-                            {transactionResult.backend?.endpoint !== undefined && (
-                              <div className="flex flex-col">
-                                <span className="font-medium">검증 엔드포인트</span>
-                                <span className="text-sm break-all text-gray-700">
-                                  {transactionResult.backend.endpoint || '미설정'}
-                                </span>
                               </div>
                             )}
                             {transactionResult.verification?.status && (
