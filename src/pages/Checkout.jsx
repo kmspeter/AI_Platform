@@ -74,6 +74,7 @@ const formatTokenLimit = (value) => {
 
 const MERCHANT_WALLET_ADDRESS = 'Ctsc4RLun5Rrv8pLSidD8cpYKWWdsT1sNUqpA7rv4YLN';
 const SOLANA_ENDPOINT = 'https://api.devnet.solana.com';
+const BACKEND_VERIFICATION_ENDPOINT = 'https://api.example.com/verify';
 
 export const Checkout = () => {
   const { id } = useParams();
@@ -116,7 +117,6 @@ export const Checkout = () => {
   });
   const hasPricingPlans = Boolean(modelData?.pricingPlans?.length);
   const [selectedPlanId, setSelectedPlanId] = useState(() => checkoutState.selectedPlanId || planParam);
-  const [backendEndpoint, setBackendEndpoint] = useState('');
 
   const steps = [
     { number: 1, title: '지갑 연결', description: '결제를 위해 지갑을 연결하세요' },
@@ -386,11 +386,6 @@ export const Checkout = () => {
         onchainTx: signature,
       };
 
-      console.log('📡 백엔드 검증 데이터 (콘솔 출력):', {
-        endpoint: backendEndpoint || '(엔드포인트 미입력)',
-        payload: verificationPayload,
-      });
-
       console.log('⏳ 백엔드 검증 대기 상태로 전환:', {
         transactionSignature: signature,
         order: orderDetails,
@@ -402,7 +397,7 @@ export const Checkout = () => {
         order: orderDetails,
         wallet: walletDetails,
         backend: {
-          endpoint: backendEndpoint,
+          endpoint: BACKEND_VERIFICATION_ENDPOINT,
           payload: verificationPayload,
         },
         verification: {
@@ -727,20 +722,13 @@ export const Checkout = () => {
                           : 'Solana Devnet에서 트랜잭션이 확인되었습니다. 검증 완료 후 결제가 확정됩니다.'}
                       </p>
 
-                      <div className="mb-6 text-left space-y-2">
-                        <label className="text-sm font-medium text-gray-700" htmlFor="backend-endpoint">
-                          검증 백엔드 엔드포인트
-                        </label>
-                        <input
-                          id="backend-endpoint"
-                          type="text"
-                          value={backendEndpoint}
-                          onChange={(event) => setBackendEndpoint(event.target.value)}
-                          placeholder="예: https://api.example.com/verify"
-                          className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-                        />
+                      <div className="mb-6 text-left space-y-1">
+                        <span className="text-sm font-medium text-gray-700">검증 백엔드 엔드포인트</span>
+                        <div className="text-sm break-all text-gray-700 p-3 bg-gray-50 border border-gray-200 rounded-md">
+                          {BACKEND_VERIFICATION_ENDPOINT || '미설정'}
+                        </div>
                         <p className="text-xs text-gray-500">
-                          엔드포인트를 입력하면 동일한 정보가 콘솔 로그에 함께 출력됩니다. 현재는 백엔드 미구현 상태입니다.
+                          Checkout 컴포넌트 상단의 BACKEND_VERIFICATION_ENDPOINT 상수를 업데이트하여 엔드포인트를 설정하세요.
                         </p>
                       </div>
 
@@ -785,7 +773,7 @@ export const Checkout = () => {
                               <div className="flex flex-col">
                                 <span className="font-medium">검증 엔드포인트</span>
                                 <span className="text-sm break-all text-gray-700">
-                                  {backendEndpoint || transactionResult.backend.endpoint || '미입력'}
+                                  {transactionResult.backend.endpoint || '미설정'}
                                 </span>
                               </div>
                             )}
@@ -799,18 +787,6 @@ export const Checkout = () => {
                               <p className="text-sm">{transactionResult.verification.message}</p>
                             )}
                           </div>
-                        </div>
-                      )}
-
-                      {transactionResult?.backend?.payload && (
-                        <div className="mb-6 text-left">
-                          <h5 className="text-sm font-semibold text-gray-900 mb-2">백엔드 전송 예정 데이터 (콘솔 출력)</h5>
-                          <pre className="max-h-64 overflow-auto rounded-lg bg-gray-900 p-4 text-xs text-green-200">
-                            {JSON.stringify(transactionResult.backend.payload, null, 2)}
-                          </pre>
-                          <p className="mt-2 text-xs text-gray-500">
-                            결제 검증은 백엔드가 준비되면 이 데이터를 활용해 주세요.
-                          </p>
                         </div>
                       )}
 
@@ -893,20 +869,13 @@ export const Checkout = () => {
                         </div>
                       </div>
 
-                      <div className="mb-6 text-left space-y-2">
-                        <label className="text-sm font-medium text-gray-700" htmlFor="backend-endpoint-input">
-                          검증 백엔드 엔드포인트
-                        </label>
-                        <input
-                          id="backend-endpoint-input"
-                          type="text"
-                          value={backendEndpoint}
-                          onChange={(event) => setBackendEndpoint(event.target.value)}
-                          placeholder="예: https://api.example.com/verify"
-                          className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-                        />
+                      <div className="mb-6 text-left space-y-1">
+                        <span className="text-sm font-medium text-gray-700">검증 백엔드 엔드포인트</span>
+                        <div className="text-sm break-all text-gray-700 p-3 bg-gray-50 border border-gray-200 rounded-md">
+                          {BACKEND_VERIFICATION_ENDPOINT || '미설정'}
+                        </div>
                         <p className="text-xs text-gray-500">
-                          입력한 엔드포인트는 결제 트랜잭션이 완료될 때 콘솔 로그에 함께 표시됩니다.
+                          Checkout 컴포넌트 상단의 BACKEND_VERIFICATION_ENDPOINT 상수를 업데이트하여 엔드포인트를 설정하세요.
                         </p>
                       </div>
 
