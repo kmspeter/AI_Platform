@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useLocation, useParams, useSearchParams } from 'react-router-dom';
 import { Wallet, Check, AlertCircle, CreditCard, Loader2, XCircle } from 'lucide-react';
-import { Connection, LAMPORTS_PER_SOL, PublicKey, SystemProgram, Transaction } from '@solana/web3.js';
+import { Connection, LAMPORTS_PER_SOL, PublicKey, SystemProgram, Transaction, TransactionInstruction } from '@solana/web3.js';
 import { phantomWallet } from '../utils/phantomWallet';
 import { cachedFetch } from '../utils/apiCache';
 import { resolveApiUrl } from '../config/api';
@@ -75,6 +75,7 @@ const formatTokenLimit = (value) => {
 const MERCHANT_WALLET_ADDRESS = 'Ctsc4RLun5Rrv8pLSidD8cpYKWWdsT1sNUqpA7rv4YLN';
 const SOLANA_ENDPOINT = 'https://api.devnet.solana.com';
 const BACKEND_VERIFICATION_ENDPOINT = resolveApiUrl('/api/payments/verify');
+const MEMO_PROGRAM_ID = new PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr');
 
 export const Checkout = () => {
   const { id } = useParams();
@@ -93,6 +94,7 @@ export const Checkout = () => {
   const [transactionResult, setTransactionResult] = useState(null);
   const [verificationStatus, setVerificationStatus] = useState('idle');
   const [verificationLoading, setVerificationLoading] = useState(false);
+  const [verificationRequest, setVerificationRequest] = useState(null);
   const [paymentStatus, setPaymentStatus] = useState('');
   const [airdropStatus, setAirdropStatus] = useState('');
   const [modelLoading, setModelLoading] = useState(() => !hasPreloadedModel);
@@ -318,6 +320,7 @@ export const Checkout = () => {
     setPaymentSuccess(false);
     setTransactionResult(null);
     setVerificationStatus('idle');
+    setVerificationRequest(null);
 
     try {
       // Step 1: 팬텀 지갑 제공자 확인
@@ -363,6 +366,27 @@ export const Checkout = () => {
       setPaymentStatus('트랜잭션을 준비하고 있습니다...');
       const merchantPublicKey = new PublicKey(MERCHANT_WALLET_ADDRESS);
       const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('confirmed');
+
+      const planPricingInfo = (selectedPlan?.id && pricingPayload[selectedPlan.id])
+        ? { ...pricingPayload[selectedPlan.id] }
+        : {};
+      const modelIdNumeric = coerceNumber(modelData.id);
+      const transactionMetadata = {
+        id: modelIdNumeric != null ? modelIdNumeric : modelData.id,
+        name: modelData.name,
+        plan: selectedPlan.name || selectedPlan.id,
+        pricing: planPricingInfo,
+      };
+      const metadataBuffer = new TextEncoder().encode(JSON.stringify(transactionMetadata));
+      if (metadataBuffer.length > 566) {
+        throw new Error('트랜잭션 메타데이터가 너무 큽니다. 선택한 플랜 정보를 확인해주세요.');
+      }
+      const memoInstruction = new TransactionInstruction({
+        keys: [],
+        programId: MEMO_PROGRAM_ID,
+        data: metadataBuffer,
+      });
+
       const transaction = new Transaction({
         feePayer: userPublicKey,
         recentBlockhash: blockhash,
@@ -371,7 +395,8 @@ export const Checkout = () => {
           fromPubkey: userPublicKey,
           toPubkey: merchantPublicKey,
           lamports: requiredLamports,
-        })
+        }),
+        memoInstruction,
       );
 
       // Step 4: 팬텀 지갑 서명
@@ -440,17 +465,25 @@ export const Checkout = () => {
         buyerName = storedName;
       }
 
+      const verificationCoreData = {
+        id: transactionMetadata.id,
+        name: transactionMetadata.name,
+        plan: transactionMetadata.plan,
+        pricing: transactionMetadata.pricing,
+      };
+
       const verificationPayload = {
-        id: modelData.id,
-        name: modelData.name,
+        ...verificationCoreData,
+        planId: selectedPlan.id,
         buyer: buyerName,
         versionName: modelData.versionName || '1.0.0',
-        plan: selectedPlan.id,
-        pricing: selectedPlan?.id && pricingPayload[selectedPlan.id]
-          ? { [selectedPlan.id]: pricingPayload[selectedPlan.id] }
-          : pricingPayload,
         onchainTx: signature,
       };
+
+      setVerificationRequest({
+        endpoint: BACKEND_VERIFICATION_ENDPOINT,
+        payload: verificationPayload,
+      });
 
       console.log('⏳ 백엔드 검증 시작:');
       console.log('📤 백엔드로 전송할 데이터:');
@@ -464,6 +497,7 @@ export const Checkout = () => {
           endpoint: BACKEND_VERIFICATION_ENDPOINT,
           payload: verificationPayload,
         },
+        metadata: transactionMetadata,
         verification: {
           status: 'PENDING',
           message: '백엔드 검증 대기 중입니다.',
@@ -619,8 +653,10 @@ export const Checkout = () => {
       return;
     }
 
-    const endpoint = transactionResult?.backend?.endpoint || BACKEND_VERIFICATION_ENDPOINT;
-    const payload = transactionResult?.backend?.payload;
+    const endpoint = verificationRequest?.endpoint
+      || transactionResult?.backend?.endpoint
+      || BACKEND_VERIFICATION_ENDPOINT;
+    const payload = verificationRequest?.payload || transactionResult?.backend?.payload;
 
     if (!payload || !endpoint) {
       setPaymentError('재검증에 필요한 정보가 부족합니다.');
@@ -660,7 +696,6 @@ export const Checkout = () => {
           Accept: 'application/json',
         },
         body: JSON.stringify(payload),
-        credentials: 'include',
       });
 
       const verificationResponse = await Promise.race([fetchPromise, timeoutPromise]);
