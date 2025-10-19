@@ -378,7 +378,7 @@ export const Checkout = () => {
         pricing: planPricingInfo,
       };
       const metadataBuffer = new TextEncoder().encode(JSON.stringify(transactionMetadata));
-      if (metadataBuffer.length > 566) {
+      if (metadataBuffer.length > 512) {
         throw new Error('트랜잭션 메타데이터가 너무 큽니다. 선택한 플랜 정보를 확인해주세요.');
       }
       const memoInstruction = new TransactionInstruction({
@@ -465,18 +465,15 @@ export const Checkout = () => {
         buyerName = storedName;
       }
 
-      const verificationCoreData = {
-        id: transactionMetadata.id,
-        name: transactionMetadata.name,
-        plan: transactionMetadata.plan,
-        pricing: transactionMetadata.pricing,
-      };
-
       const verificationPayload = {
-        ...verificationCoreData,
-        planId: selectedPlan.id,
+        id: modelData.id,
+        name: modelData.name,
         buyer: buyerName,
         versionName: modelData.versionName || '1.0.0',
+        plan: selectedPlan.id,
+        pricing: selectedPlan?.id && pricingPayload[selectedPlan.id]
+          ? { [selectedPlan.id]: pricingPayload[selectedPlan.id] }
+          : pricingPayload,
         onchainTx: signature,
       };
 
