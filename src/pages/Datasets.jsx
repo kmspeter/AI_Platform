@@ -1,9 +1,10 @@
 import React, { useState, useMemo } from 'react';
-import { Database, Download, Eye, ShoppingCart, Filter, Search, Star } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Database, Download, Eye, ShoppingCart, Filter, Search, Star, ArrowRight } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
 import { convertSolToLamports, formatLamports, lamportsToSol } from '../utils/currency';
 
 export const Datasets = () => {
+  const navigate = useNavigate();
   const [filters, setFilters] = useState({
     search: '',
     category: [],
@@ -319,9 +320,12 @@ export const Datasets = () => {
                     )}
                   </div>
                   <div className="flex space-x-2">
-                    <button className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-md text-sm font-medium hover:bg-gray-200 transition-colors">
-                      <Eye className="h-4 w-4 inline mr-1" />
-                      미리보기
+                    <button
+                      onClick={() => navigate(`/datasets/${dataset.id}`)}
+                      className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-md text-sm font-medium hover:bg-gray-200 transition-colors"
+                    >
+                      <ArrowRight className="h-4 w-4 inline mr-1" />
+                      자세히
                     </button>
                     <button className="px-3 py-1.5 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 transition-colors">
                       <ShoppingCart className="h-4 w-4 inline mr-1" />

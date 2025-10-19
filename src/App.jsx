@@ -8,6 +8,7 @@ import { Layout } from './components/layout/Layout';
 import { Market } from './pages/Market';
 import { ModelDetail } from './pages/ModelDetail';
 import { Datasets } from './pages/Datasets';
+import { DatasetDetail } from './pages/DatasetDetail';
 import { Playground } from './pages/Playground';
 import { Creator } from './pages/Creator';
 import { FineTune } from './pages/FineTune';
@@ -62,6 +63,7 @@ const AppContent = () => {
         <Route path="/model/:id" element={<ModelDetail />} />
         <Route path="/models/register" element={<ModelRegister />} />
         <Route path="/datasets" element={<Datasets />} />
+        <Route path="/datasets/:id" element={<DatasetDetail />} />
         <Route path="/playground" element={<Playground />} />
         <Route path="/creator" element={<Creator />} />
         <Route path="/creator/new" element={<Creator />} />
