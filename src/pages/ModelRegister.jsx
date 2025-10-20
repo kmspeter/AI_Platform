@@ -654,7 +654,6 @@ export const ModelRegister = () => {
       modality: modelForm.modality,
       license: modelForm.license,
       pricing,
-      parentModelId: modelForm.parentModelId,
       parentModelRelationship: modelForm.parentRelationship,
       walletAddress: user?.wallet?.address ?? null,
     };
