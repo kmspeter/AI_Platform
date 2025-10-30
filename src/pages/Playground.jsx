@@ -1,8 +1,20 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, Settings, Copy, Play, Trash2, RefreshCw } from 'lucide-react';
+import { useAuth } from '@/contexts';
 
 // 배포용 API 엔드포인트 (ngrok 또는 고정 도메인)
 const API_BASE = 'https://67a194bab0bb.ngrok-free.app';
+
+const getUserIdFromAuth = (user) => {
+  if (typeof window === 'undefined') return '';
+  const storedEmail = localStorage.getItem('userEmail') || '';
+  const storedName = localStorage.getItem('userName') || '';
+  const email = user?.email || storedEmail || '';
+  const prefix = email.split('@')[0]?.trim();
+  if (prefix) return prefix;
+  if (storedName && storedName.trim()) return storedName.trim();
+  return '';
+};
 
 export const Playground = () => {
   const [messages, setMessages] = useState([]);
@@ -15,6 +27,8 @@ export const Playground = () => {
   const [systemPrompt, setSystemPrompt] = useState('도움이 되는 AI 어시스턴트입니다.');
   const [sessionId] = useState(`session-${Date.now()}`);
   const [totalCost, setTotalCost] = useState(0);
+  const { user } = useAuth();
+  const [userId, setUserId] = useState(() => getUserIdFromAuth(user));
   const messagesEndRef = useRef(null);
 
   const presets = [
@@ -37,6 +51,12 @@ export const Playground = () => {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  useEffect(() => {
+    setUserId(getUserIdFromAuth(user));
+  }, [user]);
+
+  const effectiveUserId = userId || 'anonymous';
 
   const handlePresetChange = (presetId) => {
     setPreset(presetId);
@@ -76,7 +96,7 @@ export const Playground = () => {
         max_tokens: maxTokens,
         stream: false,
         session_id: sessionId,
-        user_id: 'playground-user'
+        user_id: effectiveUserId
       };
 
       const response = await fetch(`${API_BASE}/api/chat/completions`, {
@@ -93,10 +113,12 @@ export const Playground = () => {
       }
 
       const data = await response.json();
-      
+
+      const assistantContent = data.content || data.warning || '응답이 없습니다.';
+
       const assistantMessage = {
         role: 'assistant',
-        content: data.content,
+        content: assistantContent,
         timestamp: new Date(),
         metadata: {
           model: data.model,
@@ -105,7 +127,6 @@ export const Playground = () => {
           cost: data.cost
         }
       };
-
       setMessages(prev => [...prev, assistantMessage]);
       setTotalCost(prev => prev + (data.cost?.total_cost || 0));
     } catch (error) {
@@ -150,7 +171,7 @@ export const Playground = () => {
     "temperature": ${temperature},
     "max_tokens": ${maxTokens},
     "session_id": "${sessionId}",
-    "user_id": "playground-user"
+    "user_id": "${effectiveUserId.replace(/"/g, '\\"')}"
   }'`;
     
     navigator.clipboard.writeText(curlCommand);
@@ -172,7 +193,7 @@ export const Playground = () => {
     temperature: ${temperature},
     max_tokens: ${maxTokens},
     session_id: '${sessionId}',
-    user_id: 'playground-user'
+    user_id: '${effectiveUserId.replace(/'/g, "\\'")}'
   })
 });
 
@@ -198,7 +219,7 @@ response = requests.post(
         'temperature': ${temperature},
         'max_tokens': ${maxTokens},
         'session_id': '${sessionId}',
-        'user_id': 'playground-user'
+        'user_id': '${effectiveUserId.replace(/'/g, "\\'")}'
     }
 )
 
