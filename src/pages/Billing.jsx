@@ -97,7 +97,15 @@ export const Billing = () => {
 
       try {
         const response = await fetch(`${API_BASE}/api/usage/user/${encodeURIComponent(userId)}`, {
-          signal: controller.signal
+          signal: controller.signal,
+          headers: {
+            'Accept': 'application/json',
+            // ngrok 브라우저 경고 우회용
+            'ngrok-skip-browser-warning': 'true'
+          },
+          // 필요 시: 인증 쿠키 등을 쓰면
+          // credentials: 'include',
+          // mode: 'cors'
         });
 
         if (!response.ok) {
