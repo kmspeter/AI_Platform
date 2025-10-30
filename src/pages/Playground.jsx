@@ -93,10 +93,12 @@ export const Playground = () => {
       }
 
       const data = await response.json();
-      
+
+      const assistantContent = data.content || data.warning || '응답이 없습니다.';
+
       const assistantMessage = {
         role: 'assistant',
-        content: data.content,
+        content: assistantContent,
         timestamp: new Date(),
         metadata: {
           model: data.model,
@@ -105,7 +107,6 @@ export const Playground = () => {
           cost: data.cost
         }
       };
-
       setMessages(prev => [...prev, assistantMessage]);
       setTotalCost(prev => prev + (data.cost?.total_cost || 0));
     } catch (error) {
