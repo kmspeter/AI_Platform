@@ -9,8 +9,20 @@ import {
   Settings
 } from 'lucide-react';
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { useAuth } from '@/contexts';
 
 const API_BASE = 'https://67a194bab0bb.ngrok-free.app';
+
+const getUserIdFromAuth = (user) => {
+  if (typeof window === 'undefined') return '';
+  const storedEmail = localStorage.getItem('userEmail') || '';
+  const storedName = localStorage.getItem('userName') || '';
+  const email = user?.email || storedEmail || '';
+  const prefix = email.split('@')[0]?.trim();
+  if (prefix) return prefix;
+  if (storedName && storedName.trim()) return storedName.trim();
+  return '';
+};
 
 const PERIOD_OPTIONS = [
   { value: '7d', label: '7일', days: 7 },
@@ -58,13 +70,23 @@ export const Billing = () => {
   const [usageData, setUsageData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [userId, setUserId] = useState('test-user-001');
-  const [userIdInput, setUserIdInput] = useState('test-user-001');
+  const { user, loading: authLoading } = useAuth();
+  const [userId, setUserId] = useState(() => getUserIdFromAuth(user));
   const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
+    if (authLoading) return;
+    setUserId(getUserIdFromAuth(user));
+  }, [user, authLoading]);
+
+  useEffect(() => {
+    if (authLoading) {
+      return;
+    }
     if (!userId) {
       setUsageData([]);
+      setError('Google 로그인 정보를 찾을 수 없습니다. 다시 로그인해주세요.');
+      setLoading(false);
       return;
     }
 
@@ -103,21 +125,10 @@ export const Billing = () => {
     fetchUsage();
 
     return () => controller.abort();
-  }, [userId, refreshKey]);
-
-  const handleUserIdSubmit = (event) => {
-    event.preventDefault();
-    const trimmed = userIdInput.trim();
-    if (!trimmed) {
-      setError('사용자 ID를 입력해주세요.');
-      return;
-    }
-    setError(null);
-    setUserId(trimmed);
-    setRefreshKey(prev => prev + 1);
-  };
+  }, [userId, refreshKey, authLoading]);
 
   const handleRefresh = () => {
+    if (authLoading || !userId) return;
     setError(null);
     setRefreshKey(prev => prev + 1);
   };
@@ -337,29 +348,17 @@ export const Billing = () => {
           </button>
         </div>
 
-        <form onSubmit={handleUserIdSubmit} className="mb-6 flex flex-wrap items-center gap-3">
-          <label htmlFor="user-id-input" className="text-sm font-medium text-gray-700">
-            사용자 ID
-          </label>
-          <input
-            id="user-id-input"
-            type="text"
-            value={userIdInput}
-            onChange={(e) => setUserIdInput(e.target.value)}
-            placeholder="test-user-001"
-            className="w-64 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          <button
-            type="submit"
-            disabled={loading}
-            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300"
-          >
-            조회
-          </button>
+        <div className="mb-6 flex flex-wrap items-center gap-3">
+          <div className="text-sm text-gray-600">
+            <span className="font-medium text-gray-700">사용자 ID</span>
+            <span className="ml-2 font-mono text-gray-900">
+              {userId || '로그인 정보를 확인 중...'}
+            </span>
+          </div>
           <button
             type="button"
             onClick={handleRefresh}
-            disabled={loading}
+            disabled={loading || !userId}
             className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:text-gray-400"
           >
             새로고침
@@ -367,7 +366,7 @@ export const Billing = () => {
           {loading && (
             <span className="text-xs text-gray-500">데이터를 불러오는 중입니다...</span>
           )}
-        </form>
+        </div>
 
         {error && (
           <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
