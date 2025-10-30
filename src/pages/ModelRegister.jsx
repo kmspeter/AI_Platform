@@ -654,8 +654,6 @@ export const ModelRegister = () => {
       modality: modelForm.modality,
       license: modelForm.license,
       pricing,
-      parentModelId: modelForm.parentModelId,
-      parentModelRelationship: modelForm.parentRelationship,
       walletAddress: user?.wallet?.address ?? null,
     };
 
@@ -1158,21 +1156,26 @@ export const ModelRegister = () => {
                       const num = Number(value);
                       if (Number.isNaN(num)) return;
 
-                      // 범위에 맞게 clamp
-                      const clamped = Math.min(Math.max(num, range.min), range.max);
+                      // ✅ 해결: 입력 중에는 그대로 저장 (포맷팅 없이)
+                      setMetricsValues((prev) => ({ ...prev, [k]: value }));
+                    }}
+                    onBlur={(e) => {
+                      // ✅ blur 시에만 포맷팅 적용
+                      const { value } = e.target;
+                      if (value === '') return;
+                      
+                      const num = Number(value);
+                      if (Number.isNaN(num)) return;
 
-                      let normalized = clamped;
-                      let formatted = clamped.toString();
+                      const clamped = Math.min(Math.max(num, range.min), range.max);
 
                       if (typeof range.step === 'number' && range.step > 0 && !Number.isInteger(range.step)) {
                         const decimals = range.step.toString().split('.')[1]?.length || 0;
-                        normalized = Number(clamped.toFixed(decimals));
-                        formatted = normalized.toFixed(decimals);
+                        const formatted = clamped.toFixed(decimals);
+                        setMetricsValues((prev) => ({ ...prev, [k]: formatted }));
                       } else {
-                        formatted = normalized.toString();
+                        setMetricsValues((prev) => ({ ...prev, [k]: clamped.toString() }));
                       }
-
-                      setMetricsValues((prev) => ({ ...prev, [k]: formatted }));
                     }}
                     className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                     placeholder={`${range.min}~${range.max}${range.unit} (예: ${
