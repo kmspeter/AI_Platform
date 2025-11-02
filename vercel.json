@@ -2,7 +2,7 @@
   "rewrites": [
     {
       "source": "/ipfs/:path*",
-      "destination": "http://3.37.129.16:3001/ipfs/:path*"
+      "destination": "http://52.79.235.41:3001/ipfs/:path*"
     },
     {
       "source": "/(.*)",
