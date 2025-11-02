@@ -275,8 +275,6 @@ export const Checkout = () => {
         serializedPlan.monthlyRequestLimit = requestLimit;
       }
 
-      serializedPlan.rights = planRights;
-
       acc[plan.id] = serializedPlan;
       return acc;
     }, {});
