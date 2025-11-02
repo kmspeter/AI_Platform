@@ -377,6 +377,13 @@ export const Checkout = () => {
         plan: selectedPlan.name || selectedPlan.id,
         pricing: planPricingInfo,
       };
+
+      const metadataJson = JSON.stringify(transactionMetadata);
+      const metadataBuffer2 = new TextEncoder().encode(metadataJson);
+
+      console.log('[MEMO] json length(chars)=', metadataJson.length);
+      console.log('[MEMO] memo length(bytes)=', metadataBuffer2.length);
+
       const metadataBuffer = new TextEncoder().encode(JSON.stringify(transactionMetadata));
       if (metadataBuffer.length > 512) {
         throw new Error('트랜잭션 메타데이터가 너무 큽니다. 선택한 플랜 정보를 확인해주세요.');
