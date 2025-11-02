@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useLocation, useParams, useSearchParams } from 'react-router-dom';
 import { Wallet, Check, AlertCircle, CreditCard, Loader2, XCircle } from 'lucide-react';
-import { Connection, LAMPORTS_PER_SOL, PublicKey, SystemProgram, Transaction, TransactionInstruction } from '@solana/web3.js';
+import { ComputeBudgetProgram, Connection, LAMPORTS_PER_SOL, PublicKey, SystemProgram, Transaction, TransactionInstruction } from '@solana/web3.js';
 import { phantomWallet } from '../utils/phantomWallet';
 import { cachedFetch } from '../utils/apiCache';
 import { resolveApiUrl } from '../config/api';
@@ -377,13 +377,6 @@ export const Checkout = () => {
         plan: selectedPlan.name || selectedPlan.id,
         pricing: planPricingInfo,
       };
-
-      const metadataJson = JSON.stringify(transactionMetadata);
-      const metadataBuffer2 = new TextEncoder().encode(metadataJson);
-
-      console.log('[MEMO] json length(chars)=', metadataJson.length);
-      console.log('[MEMO] memo length(bytes)=', metadataBuffer2.length);
-
       const metadataBuffer = new TextEncoder().encode(JSON.stringify(transactionMetadata));
       if (metadataBuffer.length > 512) {
         throw new Error('트랜잭션 메타데이터가 너무 큽니다. 선택한 플랜 정보를 확인해주세요.');
@@ -394,10 +387,15 @@ export const Checkout = () => {
         data: metadataBuffer,
       });
 
+      const modifyComputeUnits = ComputeBudgetProgram.setComputeUnitLimit({
+        units: 500000,
+      });
+
       const transaction = new Transaction({
         feePayer: userPublicKey,
         recentBlockhash: blockhash,
       }).add(
+        modifyComputeUnits,
         SystemProgram.transfer({
           fromPubkey: userPublicKey,
           toPubkey: merchantPublicKey,
