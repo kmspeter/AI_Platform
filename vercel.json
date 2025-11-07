@@ -1,6 +1,10 @@
 {
   "rewrites": [
     {
+      "source": "/health/blockchain",
+      "destination": "https://35.216.87.44.sslip.io/health"
+    },
+    {
       "source": "/ipfs/:path*",
       "destination": "http://52.79.235.41:3001/ipfs/:path*"
     },

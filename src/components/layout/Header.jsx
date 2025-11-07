@@ -35,7 +35,7 @@ export const Header = ({ onWalletConnect }) => {
   });
 
   const backendHealthUrl = useMemo(() => resolveApiUrl('/health'), []);
-  const blockchainHealthUrl = 'https://35.216.87.44.sslip.io/health';
+  const blockchainHealthUrl = '/health/blockchain';
 
   const formatRelativeTime = useCallback((dateInput) => {
     if (!dateInput) return '방금 전';
