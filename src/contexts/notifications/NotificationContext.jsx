@@ -84,17 +84,20 @@ export const NotificationProvider = ({ children }) => {
     setNotifications([]);
   }, []);
 
-  const unreadCount = useMemo(() => notifications.filter((notification) => !notification.read).length, [notifications]);
-
-  const value = useMemo(() => ({
-    notifications,
-    unreadCount,
-    addNotification,
-    markAsRead,
-    markAllAsRead,
-    removeNotification,
-    clearNotifications,
-  }), [notifications, unreadCount, addNotification, markAsRead, markAllAsRead, removeNotification, clearNotifications]);
+  // unreadCount를 value 생성 시에 계산하여 순환 참조 제거
+  const value = useMemo(() => {
+    const unreadCount = notifications.filter((notification) => !notification.read).length;
+    
+    return {
+      notifications,
+      unreadCount,
+      addNotification,
+      markAsRead,
+      markAllAsRead,
+      removeNotification,
+      clearNotifications,
+    };
+  }, [notifications, addNotification, markAsRead, markAllAsRead, removeNotification, clearNotifications]);
 
   return (
     <NotificationContext.Provider value={value}>
