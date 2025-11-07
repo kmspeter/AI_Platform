@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation, useParams, useSearchParams } from 'react-router-dom';
 import { Wallet, Check, AlertCircle, CreditCard, Loader2, XCircle } from 'lucide-react';
 import { ComputeBudgetProgram, Connection, LAMPORTS_PER_SOL, PublicKey, SystemProgram, Transaction, TransactionInstruction } from '@solana/web3.js';
@@ -7,6 +7,7 @@ import { cachedFetch } from '../utils/apiCache';
 import { resolveApiUrl } from '../config/api';
 import { extractPricingPlans, normalizeLicense, selectDefaultPlan, MODEL_DEFAULT_THUMBNAIL } from '../utils/modelTransformers';
 import { convertSolToLamports, formatLamports } from '../utils/currency';
+import { useNotifications } from '@/contexts';
 
 const extractModelResponse = (data) => {
   if (!data) return [];
@@ -81,6 +82,7 @@ export const Checkout = () => {
   const { id } = useParams();
   const location = useLocation();
   const [searchParams] = useSearchParams();
+  const { addNotification } = useNotifications();
   const checkoutState = location.state || {};
   const hasPreloadedModel = Boolean(checkoutState?.model);
   const planParam = searchParams.get('plan') || checkoutState.selectedPlanId || 'standard';
@@ -238,6 +240,66 @@ export const Checkout = () => {
   const rights = selectedPlan?.rights?.length ? selectedPlan.rights : (modelData?.licenseTags || []);
   const planMetadata = selectedPlan?.metadata || {};
 
+  const notifyPaymentSuccess = useCallback(({ order, signature, verificationStatus: status, verificationData }) => {
+    if (!order) return;
+
+    const planLabel = order.planName || order.planId || '';
+    const descriptor = [order.modelName || '모델', planLabel && `(${planLabel})`]
+      .filter(Boolean)
+      .join(' ');
+    const normalizedAmountSol = typeof order.amountSol === 'number'
+      ? Number(order.amountSol.toFixed(4))
+      : order.amountSol;
+
+    addNotification({
+      type: 'payment',
+      level: 'success',
+      title: '결제 완료',
+      message: `${descriptor || '결제'} 결제가 완료되었습니다.`,
+      metadata: {
+        modelId: order.modelId,
+        modelName: order.modelName,
+        planId: order.planId,
+        planName: order.planName,
+        amountSol: normalizedAmountSol,
+        amountLamports: order.amountLamports,
+        txId: signature || verificationData?.transactionId || verificationData?.signature || null,
+        verificationStatus: status,
+      },
+    });
+  }, [addNotification]);
+
+  const notifyPaymentFailure = useCallback((message, { order, signature, error, level = 'error' } = {}) => {
+    const planLabel = order?.planName || order?.planId || '';
+    const descriptor = [order?.modelName, planLabel && `(${planLabel})`]
+      .filter(Boolean)
+      .join(' ');
+    const normalizedAmountSol = typeof order?.amountSol === 'number'
+      ? Number(order.amountSol.toFixed(4))
+      : order?.amountSol;
+
+    const fallbackMessage = descriptor
+      ? `${descriptor} 결제 처리 중 오류가 발생했습니다.`
+      : '결제 처리 중 오류가 발생했습니다.';
+
+    addNotification({
+      type: 'payment',
+      level,
+      title: level === 'warning' ? '결제 경고' : '결제 실패',
+      message: message || fallbackMessage,
+      metadata: {
+        modelId: order?.modelId,
+        modelName: order?.modelName,
+        planId: order?.planId,
+        planName: order?.planName,
+        amountSol: normalizedAmountSol,
+        amountLamports: order?.amountLamports,
+        txId: signature || null,
+        error: error || message || null,
+      },
+    });
+  }, [addNotification]);
+
   const pricingPayload = useMemo(() => {
     if (!modelData?.pricingPlans?.length) {
       return {};
@@ -319,6 +381,9 @@ export const Checkout = () => {
     setTransactionResult(null);
     setVerificationStatus('idle');
     setVerificationRequest(null);
+
+    let orderDetails = null;
+    let signature = '';
 
     try {
       // Step 1: 팬텀 지갑 제공자 확인
@@ -420,13 +485,13 @@ export const Checkout = () => {
       // Step 5: Devnet 전송 및 확인
       console.log('🚀 트랜잭션 전송 중...');
       setPaymentStatus('트랜잭션을 Solana Devnet에 전송 중입니다...');
-      const signature = await connection.sendRawTransaction(signedTransaction.serialize());
+      signature = await connection.sendRawTransaction(signedTransaction.serialize());
       console.log(`트랜잭션 시그니처: ${signature}`);
       await connection.confirmTransaction({ signature, blockhash, lastValidBlockHeight }, 'confirmed');
       console.log('✅ 트랜잭션이 Devnet에서 확인되었습니다.');
 
       // Step 6: 백엔드 검증 요청
-      const orderDetails = {
+      orderDetails = {
         modelId: modelData.id,
         modelName: modelData.name,
         planId: selectedPlan.id,
@@ -569,6 +634,11 @@ export const Checkout = () => {
             };
           });
           setPaymentError(failureMessage);
+          notifyPaymentFailure(failureMessage, {
+            order: orderDetails,
+            signature,
+            error: failureMessage,
+          });
           return;
         }
 
@@ -590,6 +660,12 @@ export const Checkout = () => {
               backendResponse: verificationData,
             },
           };
+        });
+        notifyPaymentSuccess({
+          order: orderDetails,
+          signature,
+          verificationStatus: 'COMPLETED',
+          verificationData,
         });
 
       } catch (verificationError) {
@@ -613,12 +689,22 @@ export const Checkout = () => {
         });
 
         setPaymentError(verificationError.message || '백엔드 검증 중 오류가 발생했습니다.');
+        notifyPaymentFailure(verificationError.message || '백엔드 검증 중 오류가 발생했습니다.', {
+          order: orderDetails,
+          signature,
+          error: verificationError.message,
+        });
       }
 
     } catch (error) {
       console.error('❌ Payment error:', error);
       setPaymentError(error.message || '결제 처리 중 오류가 발생했습니다.');
       setPaymentStatus('결제가 실패했습니다. 다시 시도해주세요.');
+      notifyPaymentFailure(error.message || '결제 처리 중 오류가 발생했습니다.', {
+        order: orderDetails,
+        signature,
+        error: error.message,
+      });
     } finally {
       setPaymentLoading(false);
     }
@@ -646,6 +732,13 @@ export const Checkout = () => {
         },
       };
     });
+    if (transactionResult?.order) {
+      notifyPaymentSuccess({
+        order: transactionResult.order,
+        signature: transactionResult.transactionSignature,
+        verificationStatus: 'COMPLETED_MANUAL',
+      });
+    }
   };
 
   const handleRetryVerification = async () => {
@@ -736,6 +829,11 @@ export const Checkout = () => {
           };
         });
         setPaymentError(failureMessage);
+        notifyPaymentFailure(failureMessage, {
+          order: transactionResult?.order,
+          signature: transactionResult?.transactionSignature,
+          error: failureMessage,
+        });
         return;
       }
 
@@ -757,6 +855,14 @@ export const Checkout = () => {
           },
         };
       });
+      if (transactionResult?.order) {
+        notifyPaymentSuccess({
+          order: transactionResult.order,
+          signature: transactionResult.transactionSignature,
+          verificationStatus: 'COMPLETED_RETRY',
+          verificationData,
+        });
+      }
     } catch (error) {
       console.error('❌ 백엔드 재검증 오류:', error);
       setVerificationStatus('failed');
@@ -775,6 +881,11 @@ export const Checkout = () => {
             failedAt: Date.now(),
           },
         };
+      });
+      notifyPaymentFailure(error.message || '백엔드 재검증 중 오류가 발생했습니다.', {
+        order: transactionResult?.order,
+        signature: transactionResult?.transactionSignature,
+        error: error.message,
       });
     } finally {
       setVerificationLoading(false);
