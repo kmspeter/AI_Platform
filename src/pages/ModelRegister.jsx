@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Upload, RefreshCcw, Loader2, Plus, AlertTriangle, X } from 'lucide-react';
+import { ArrowLeft, Upload, RefreshCcw, Loader2, Plus, AlertTriangle, X, Lock, Unlock, Pencil } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { resolveApiUrl, resolveIpfsUrl } from '../config/api';
 import { useAuth, useNotifications } from '@/contexts';
@@ -295,6 +295,7 @@ export const ModelRegister = () => {
   const [modelsError, setModelsError] = useState('');
   const [submitStatus, setSubmitStatus] = useState('');
   const [submitError, setSubmitError] = useState('');
+  const [isUploaderEditable, setIsUploaderEditable] = useState(false);
 
   const technicalSpecFields = TECHNICAL_SPEC_TEMPLATES[modelForm.modality] || {};
   const sampleFields = SAMPLE_FIELDS_BY_MODALITY[modelForm.modality] || [];
@@ -1372,16 +1373,69 @@ export const ModelRegister = () => {
                 placeholder="예: GPT-4 Turbo"
               />
             </div>
+            
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">업로더 *</label>
-              <input
-                type="text"
-                value={modelForm.uploader}
-                readOnly
-                className="w-full rounded-lg border-gray-200 bg-gray-50 text-gray-600 cursor-not-allowed"
-                placeholder="예: openai_official"
-              />
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-sm font-medium text-gray-700">업로더 *</label>
+                <div className="flex items-center gap-2">
+                  {/* 자동 값으로 복원 */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const localPart = user?.email?.split('@')?.[0] || '';
+                      setIsUploaderEditable(false);
+                      updateModelForm('uploader', localPart);
+                    }}
+                    className="inline-flex items-center gap-1 text-xs text-gray-600 hover:text-gray-900"
+                    title="계정 이메일 로컬파트로 복원"
+                  >
+                    <RefreshCcw className="h-3.5 w-3.5" />
+                    <span>복원</span>
+                  </button>
+
+                  {/* 직접 입력 토글 */}
+                  <button
+                    type="button"
+                    onClick={() => setIsUploaderEditable((v) => !v)}
+                    className="inline-flex items-center gap-1 text-xs text-gray-600 hover:text-gray-900"
+                    title={isUploaderEditable ? '읽기 전용으로 전환' : '직접 입력으로 전환'}
+                  >
+                    {isUploaderEditable ? (
+                      <Lock className="h-3.5 w-3.5" />
+                    ) : (
+                      <Unlock className="h-3.5 w-3.5" />
+                    )}
+                    <span>{isUploaderEditable ? '잠그기' : '직접 입력'}</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="relative">
+                <input
+                  type="text"
+                  value={modelForm.uploader}
+                  onChange={(e) => updateModelForm('uploader', e.target.value)}
+                  readOnly={!isUploaderEditable}
+                  className={`w-full rounded-lg shadow-sm focus:border-blue-500 focus:ring-blue-500 ${
+                    isUploaderEditable
+                      ? 'border-gray-300 bg-white text-gray-900'
+                      : 'border-gray-200 bg-gray-50 text-gray-600 cursor-not-allowed'
+                  }`}
+                  placeholder="예: openai_official"
+                />
+                {!isUploaderEditable && (
+                  <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-gray-400">
+                    <Pencil className="h-4 w-4" />
+                  </div>
+                )}
+              </div>
+
+              {/* 선택: 간단한 유효성 안내 */}
+              {isUploaderEditable && !modelForm.uploader?.trim() && (
+                <p className="mt-1 text-xs text-red-600">업로더 이름을 입력하세요.</p>
+              )}
             </div>
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">버전 *</label>
               <input
