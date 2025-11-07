@@ -1,6 +1,6 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import { AuthProvider, useAuth } from '@/contexts';
+import { AuthProvider, NotificationProvider, useAuth } from '@/contexts';
 import { LoginPage } from '@/pages/auth/LoginPage';
 import { WalletConnectPage } from '@/pages/auth/WalletConnectPage';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
@@ -80,9 +80,11 @@ const AppContent = () => {
 function App() {
   return (
     <AuthProvider>
-      <Router>
-        <AppContent />
-      </Router>
+      <NotificationProvider>
+        <Router>
+          <AppContent />
+        </Router>
+      </NotificationProvider>
     </AuthProvider>
   );
 }

@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Upload, RefreshCcw, Loader2, Plus, AlertTriangle, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { resolveApiUrl, resolveIpfsUrl } from '../config/api';
-import { useAuth } from '@/contexts';
+import { useAuth, useNotifications } from '@/contexts';
 
 const modalityOptions = [
   { value: 'LLM', label: 'LLM (언어모델)' },
@@ -234,6 +234,7 @@ export const ModelRegister = () => {
   const API_BASE = resolveApiUrl('/api');
   const modelFileInputRef = useRef(null);
   const { user } = useAuth();
+  const { addNotification } = useNotifications();
 
   const [modelFile, setModelFile] = useState(null);
   const [modelStatus, setModelStatus] = useState('');
@@ -742,6 +743,8 @@ export const ModelRegister = () => {
       setSubmitStatus('');
       return;
     }
+    const submittedModelName = modelForm.name?.trim() || '신규 모델';
+    const submittedVersionName = modelForm.versionName?.trim() || '';
     setSubmitError('');
     setSubmitStatus('');
     setProgressLog([]);
@@ -790,12 +793,32 @@ export const ModelRegister = () => {
         setIsSubmitting(false);
         setSubmitError('네트워크 오류로 업로드가 실패했습니다.');
         appendLog('네트워크 오류가 발생했습니다.');
+        addNotification({
+          type: 'model',
+          level: 'error',
+          title: '모델 등록 실패',
+          message: '네트워크 오류로 모델 등록에 실패했습니다.',
+          metadata: {
+            modelName: submittedModelName,
+            versionName: submittedVersionName,
+          },
+        });
       };
 
       xhr.onabort = () => {
         setIsSubmitting(false);
         setSubmitError('업로드가 취소되었습니다.');
         appendLog('요청이 중단되었습니다.');
+        addNotification({
+          type: 'model',
+          level: 'warning',
+          title: '모델 등록 취소',
+          message: '업로드가 취소되었습니다.',
+          metadata: {
+            modelName: submittedModelName,
+            versionName: submittedVersionName,
+          },
+        });
       };
 
       xhr.onload = () => {
@@ -806,13 +829,45 @@ export const ModelRegister = () => {
           if (res.success) {
             appendLog('IPFS 노드 서버 업로드 성공. 백엔드 릴레이 완료.');
             setSubmitStatus('모델이 성공적으로 등록되었습니다.');
+            const responseModelId = res.modelId || res.id || res.model?.id || res.data?.id || null;
+            addNotification({
+              type: 'model',
+              level: 'success',
+              title: '모델 등록 완료',
+              message: `${submittedModelName} 모델이 성공적으로 등록되었습니다.`,
+              metadata: {
+                modelName: submittedModelName,
+                versionName: submittedVersionName,
+                modelId: responseModelId,
+              },
+            });
           } else {
             setSubmitError(res.error || '업로드는 완료되었으나 서버에서 오류가 발생했습니다.');
             appendLog(`서버 오류: ${res.error || '알 수 없는 오류'}`);
+            addNotification({
+              type: 'model',
+              level: 'error',
+              title: '모델 등록 실패',
+              message: res.error || '서버에서 모델 등록 처리 중 오류가 발생했습니다.',
+              metadata: {
+                modelName: submittedModelName,
+                versionName: submittedVersionName,
+              },
+            });
           }
         } else {
           setSubmitError(`서버 응답 오류 (${xhr.status})`);
           appendLog(`서버 응답 오류 (${xhr.status})`);
+          addNotification({
+            type: 'model',
+            level: 'error',
+            title: '모델 등록 실패',
+            message: `서버 응답 오류 (${xhr.status})`,
+            metadata: {
+              modelName: submittedModelName,
+              versionName: submittedVersionName,
+            },
+          });
         }
       };
 
@@ -821,6 +876,16 @@ export const ModelRegister = () => {
       setIsSubmitting(false);
       setSubmitError(e.message || '제출 중 예기치 못한 오류가 발생했습니다.');
       appendLog(`예외 발생: ${e.message}`);
+      addNotification({
+        type: 'model',
+        level: 'error',
+        title: '모델 등록 실패',
+        message: e.message || '제출 중 예기치 못한 오류가 발생했습니다.',
+        metadata: {
+          modelName: submittedModelName,
+          versionName: submittedVersionName,
+        },
+      });
     }
   };
 
