@@ -225,12 +225,6 @@ export const Header = ({ onWalletConnect }) => {
                       </p>
                     )}
                   </div>
-                  <Link to="/profile" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
-                    프로필
-                  </Link>
-                  <Link to="/settings" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
-                    설정
-                  </Link>
                   <div className="border-t border-gray-100 mt-1 pt-1">
                     <button 
                       onClick={logout}
