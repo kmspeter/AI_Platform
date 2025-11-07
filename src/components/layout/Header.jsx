@@ -130,15 +130,34 @@ export const Header = ({ onWalletConnect }) => {
     try {
       await Promise.all(endpoints.map(async ({ key, url }) => {
         const start = performance.now();
+
         try {
-          const response = await fetch(url, { method: 'GET', cache: 'no-store' });
+          // ⚡ 블록체인 노드는 CORS 이슈 대비 이중 시도
+          let response, text = '', payloadObject = null;
+
+          if (key === 'blockchain') {
+            try {
+              // 정상 fetch 시도
+              response = await fetch(url, { method: 'GET', cache: 'no-store' });
+              text = await response.text();
+            } catch (corsErr) {
+              // CORS 에러일 경우 no-cors 모드로 재시도
+              console.warn('[Blockchain health] CORS 차단 감지, no-cors 모드로 재시도');
+              response = await fetch(url, { method: 'GET', mode: 'no-cors', cache: 'no-store' });
+              // 이 모드에서는 body 읽기 불가, 대신 상태만 기록
+              text = '';
+            }
+          } else {
+            // 일반 백엔드 체크
+            response = await fetch(url, { method: 'GET', cache: 'no-store' });
+            text = await response.text();
+          }
+
           const latency = Math.round(performance.now() - start);
-          const text = await response.text();
-          let payloadObject = null;
           if (text) {
             try {
               payloadObject = JSON.parse(text);
-            } catch (error) {
+            } catch {
               payloadObject = null;
             }
           }
@@ -148,13 +167,13 @@ export const Header = ({ onWalletConnect }) => {
           setSystemStatus((prev) => ({
             ...prev,
             [key]: {
-              state,
+              state: state ?? 'error',
               latency,
-              message,
+              message: message || '응답 없음',
               checkedAt: Date.now(),
-              statusCode: response.status,
+              statusCode: response.status ?? null,
               raw: payloadObject ?? text ?? null,
-            }
+            },
           }));
         } catch (error) {
           const latency = Math.round(performance.now() - start);
@@ -163,11 +182,13 @@ export const Header = ({ onWalletConnect }) => {
             [key]: {
               state: 'error',
               latency,
-              message: error.message || '연결 실패',
+              message: key === 'blockchain'
+                ? '블록체인 노드 연결 실패 (CORS 또는 SSL 문제 가능)'
+                : error.message || '연결 실패',
               checkedAt: Date.now(),
               statusCode: null,
               raw: null,
-            }
+            },
           }));
         }
       }));
