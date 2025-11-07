@@ -1,5 +1,5 @@
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from '@/contexts';
 import { LoginPage } from '@/pages/auth/LoginPage';
 import { WalletConnectPage } from '@/pages/auth/WalletConnectPage';
@@ -20,7 +20,8 @@ import { OAuthCallback } from './pages/OAuthCallback'; // 추가
 import { ModelRegister } from './pages/ModelRegister';
 
 const AppContent = () => {
-  const { isAuthenticated, loading, needsWalletConnection, skipWalletConnection, updateUser } = useAuth();
+  const navigate = useNavigate();
+  const { isAuthenticated, loading, needsWalletConnection, skipWalletConnection } = useAuth();
 
   if (loading) {
     return (
@@ -33,47 +34,123 @@ const AppContent = () => {
     );
   }
 
-  // OAuth 콜백은 인증 여부와 관계없이 처리
-  if (window.location.pathname === '/oauth/callback') {
-    return <OAuthCallback />;
-  }
-
-  if (!isAuthenticated) {
-    return <LoginPage />;
-  }
-
-  if (needsWalletConnection) {
-    return (
-      <WalletConnectPage 
-        onComplete={() => {
-          // 지갑 연결 완료 후 메인 앱으로 이동
-        }}
-        onSkip={skipWalletConnection}
-      />
-    );
-  }
+  useEffect(() => {
+    if (isAuthenticated && needsWalletConnection) {
+      navigate('/wallet-connect', { replace: true });
+    }
+  }, [isAuthenticated, needsWalletConnection, navigate]);
 
   return (
-    <Layout>
-      <Routes>
-        <Route path="/" element={<Market />} />
-        <Route path="/models" element={<Market />} />
-        <Route path="/model/:id" element={<ModelDetail />} />
-        <Route path="/models/register" element={<ModelRegister />} />
-        <Route path="/datasets" element={<Datasets />} />
-        <Route path="/datasets/:id" element={<DatasetDetail />} />
-        <Route path="/playground" element={<Playground />} />
-        <Route path="/creator" element={<Creator />} />
-        <Route path="/creator/new" element={<Creator />} />
-        <Route path="/finetune" element={<FineTune />} />
-        <Route path="/finetune/wizard" element={<FineTune />} />
-        <Route path="/billing" element={<Billing />} />
-        <Route path="/personal" element={<Personal />} />
-        <Route path="/checkout/:id" element={<Checkout />} />
-        <Route path="/purchase/:txId" element={<PurchaseComplete />} />
-        <Route path="/notifications" element={<div className="p-6"><h1 className="text-2xl font-bold">알림</h1><p>개발 중입니다</p></div>} />
-      </Routes>
-    </Layout>
+    <Routes>
+      <Route path="/oauth/callback" element={<OAuthCallback />} />
+      <Route
+        path="/login"
+        element={
+          isAuthenticated ? <Navigate to="/" replace /> : <LoginPage />
+        }
+      />
+      <Route
+        path="/wallet-connect"
+        element={
+          isAuthenticated && needsWalletConnection ? (
+            <WalletConnectPage
+              onComplete={() => navigate('/', { replace: true })}
+              onSkip={() => {
+                skipWalletConnection();
+                navigate('/', { replace: true });
+              }}
+            />
+          ) : (
+            <Navigate to="/" replace />
+          )
+        }
+      />
+      <Route element={<Layout />}>
+        <Route index element={<Market />} />
+        <Route path="models" element={<Market />} />
+        <Route path="model/:id" element={<ModelDetail />} />
+        <Route
+          path="models/register"
+          element={
+            <ProtectedRoute>
+              <ModelRegister />
+            </ProtectedRoute>
+          }
+        />
+        <Route path="datasets" element={<Datasets />} />
+        <Route path="datasets/:id" element={<DatasetDetail />} />
+        <Route path="playground" element={<Playground />} />
+        <Route
+          path="creator"
+          element={
+            <ProtectedRoute>
+              <Creator />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="creator/new"
+          element={
+            <ProtectedRoute>
+              <Creator />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="finetune"
+          element={
+            <ProtectedRoute>
+              <FineTune />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="finetune/wizard"
+          element={
+            <ProtectedRoute>
+              <FineTune />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="billing"
+          element={
+            <ProtectedRoute>
+              <Billing />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="personal"
+          element={
+            <ProtectedRoute>
+              <Personal />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="checkout/:id"
+          element={
+            <ProtectedRoute>
+              <Checkout />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="purchase/:txId"
+          element={
+            <ProtectedRoute>
+              <PurchaseComplete />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="notifications"
+          element={<div className="p-6"><h1 className="text-2xl font-bold">알림</h1><p>개발 중입니다</p></div>}
+        />
+      </Route>
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
   );
 };
 

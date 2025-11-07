@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
-import { Search, Bell, ChevronDown, User, Wallet, Wifi, X } from 'lucide-react';
+import { Search, Bell, ChevronDown, User, Wallet } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/contexts';
 import { phantomWallet } from '@/utils/phantomWallet';
 import { SearchOverlay } from '../search/SearchOverlay';
 
-export const Header = ({ onWalletConnect }) => {
-  const { user, updateUser, logout } = useAuth();
+export const Header = () => {
+  const { user, updateUser, logout, isAuthenticated } = useAuth();
   const [searchValue, setSearchValue] = useState('');
   const [showSearch, setShowSearch] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -48,6 +48,10 @@ export const Header = ({ onWalletConnect }) => {
   };
 
   const handleWalletConnect = () => {
+    if (!isAuthenticated) {
+      return;
+    }
+
     if (user?.wallet?.connected) {
       // 지갑 연결 해제
       phantomWallet.disconnect();
@@ -187,55 +191,67 @@ export const Header = ({ onWalletConnect }) => {
             {/* Wallet Connection - Text Button with Icon */}
             <button
               onClick={handleWalletConnect}
+              disabled={!isAuthenticated}
               className={`flex items-center space-x-2 px-4 py-2.5 rounded-lg transition-colors text-sm font-medium ${
-                user?.wallet?.connected 
-                  ? 'bg-green-600 text-white hover:bg-green-700' 
+                user?.wallet?.connected
+                  ? 'bg-green-600 text-white hover:bg-green-700'
                   : 'bg-purple-600 text-white hover:bg-purple-700'
+              } ${
+                !isAuthenticated ? 'opacity-60 cursor-not-allowed hover:bg-purple-600' : ''
               }`}
             >
               <Wallet className="h-4 w-4" />
               <span>
-                {user?.wallet?.connected 
-                  ? `${user.wallet.address?.slice(0, 4)}...${user.wallet.address?.slice(-4)}` 
-                  : '지갑 연결'
+                {user?.wallet?.connected
+                  ? `${user.wallet.address?.slice(0, 4)}...${user.wallet.address?.slice(-4)}`
+                  : isAuthenticated ? '지갑 연결' : '로그인 필요'
                 }
               </span>
             </button>
 
             {/* User Avatar */}
-            <div className="relative">
-              <button
-                onClick={() => setShowUserMenu(!showUserMenu)}
-                className="flex items-center space-x-2 p-2 rounded-lg hover:bg-gray-100 transition-colors"
-              >
-                <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center">
-                  <User className="h-5 w-5 text-gray-600" />
-                </div>
-                <ChevronDown className="h-4 w-4 text-gray-400" />
-              </button>
+            {isAuthenticated ? (
+              <div className="relative">
+                <button
+                  onClick={() => setShowUserMenu(!showUserMenu)}
+                  className="flex items-center space-x-2 p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                >
+                  <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center">
+                    <User className="h-5 w-5 text-gray-600" />
+                  </div>
+                  <ChevronDown className="h-4 w-4 text-gray-400" />
+                </button>
 
-              {showUserMenu && (
-                <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1">
-                  <div className="px-4 py-2 border-b border-gray-100">
-                    <p className="text-sm font-medium text-gray-900">{user?.name}</p>
-                    <p className="text-xs text-gray-600">{user?.email}</p>
-                    {user?.wallet?.connected && (
-                      <p className="text-xs text-purple-600 mt-1">
-                        {user.wallet.provider} 연결됨
-                      </p>
-                    )}
+                {showUserMenu && (
+                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1">
+                    <div className="px-4 py-2 border-b border-gray-100">
+                      <p className="text-sm font-medium text-gray-900">{user?.name || '사용자'}</p>
+                      <p className="text-xs text-gray-600">{user?.email || '이메일 미등록'}</p>
+                      {user?.wallet?.connected && (
+                        <p className="text-xs text-purple-600 mt-1">
+                          {user.wallet.provider} 연결됨
+                        </p>
+                      )}
+                    </div>
+                    <div className="border-t border-gray-100 mt-1 pt-1">
+                      <button
+                        onClick={logout}
+                        className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                      >
+                        로그아웃
+                      </button>
+                    </div>
                   </div>
-                  <div className="border-t border-gray-100 mt-1 pt-1">
-                    <button 
-                      onClick={logout}
-                      className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                    >
-                      로그아웃
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
+                )}
+              </div>
+            ) : (
+              <Link
+                to="/login"
+                className="px-4 py-2.5 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors"
+              >
+                로그인
+              </Link>
+            )}
           </div>
         </div>
       </div>

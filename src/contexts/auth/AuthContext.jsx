@@ -82,10 +82,11 @@ export const AuthProvider = ({ children }) => {
   };
 
   const updateUser = (updatedData) => {
-    const newUserData = { ...user, ...updatedData };
+    const baseUser = user ?? {};
+    const newUserData = { ...baseUser, ...updatedData };
     setUser(newUserData);
     localStorage.setItem('user', JSON.stringify(newUserData));
-    
+
     // 지갑이 연결되면 needsWalletConnection을 false로 설정
     if (updatedData.wallet?.connected) {
       setNeedsWalletConnection(false);
