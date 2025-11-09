@@ -28,6 +28,8 @@ const lineageRelationshipOptions = [
 
 const pricingPlans = ['research', 'standard', 'enterprise'];
 
+const MIN_PRICE_LAMPORTS = 100000;
+
 // 메트릭별 범위 정의
 const METRIC_RANGES = {
   // LLM: 0-100 (백분율)
@@ -260,14 +262,14 @@ export const ModelRegister = () => {
         rights: [],
       },
       standard: {
-        price: 20,
+        price: 100000,
         description: '',
         billingType: 'monthly_subscription',
         rights: [],
         // 모달리티별 동적 키로 저장할 예정
       },
       enterprise: {
-        price: 100,
+        price: 1000000,
         description: '',
         billingType: 'one_time_purchase',
         rights: [],
@@ -321,13 +323,23 @@ export const ModelRegister = () => {
   };
 
   const updatePricing = (plan, field, value) => {
-    setModelForm((prev) => ({
-      ...prev,
-      pricing: {
-        ...prev.pricing,
-        [plan]: { ...prev.pricing[plan], [field]: value },
-      },
-    }));
+    setModelForm((prev) => {
+      let nextVal = value;
+
+      // 가격 필드만 하한 적용 (research는 0 고정이므로 제외)
+      if (field === 'price' && plan !== 'research') {
+        const n = Number(value);
+        nextVal = Number.isFinite(n) ? Math.max(MIN_PRICE_LAMPORTS, n) : MIN_PRICE_LAMPORTS;
+      }
+
+      return {
+        ...prev,
+        pricing: {
+          ...prev.pricing,
+          [plan]: { ...prev.pricing[plan], [field]: nextVal },
+        },
+      };
+    });
   };
 
   // 썸네일 파일 선택 핸들러
@@ -741,6 +753,13 @@ export const ModelRegister = () => {
         }
       } else {
         if (num < 0) return `성능 메트릭 "${k}" 값은 0 이상이어야 합니다.`;
+      }
+    }
+    for (const plan of activePlans) {
+      if (plan === 'research') continue; // 0 고정
+      const price = Number(modelForm.pricing?.[plan]?.price);
+      if (!Number.isFinite(price) || price < MIN_PRICE_LAMPORTS) {
+        return `${plan} 플랜의 가격은 최소 ${MIN_PRICE_LAMPORTS} lamports 이상이어야 합니다.`;
       }
     }
     if (!activePlans.length) return '라이선스를 선택해 활성화할 플랜이 필요합니다.';
@@ -1649,10 +1668,10 @@ export const ModelRegister = () => {
                     <input
                       type="number"
                       value={plan === 'research' ? 0 : modelForm.pricing[plan].price}
-                      onChange={(e) => updatePricing(plan, 'price', parseFloat(e.target.value) || 0)}
+                      onChange={(e) => updatePricing(plan, 'price', e.target.value)}
                       className={`w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 ${plan === 'research' ? 'bg-gray-50 text-gray-500' : ''}`}
-                      min="0"
-                      step="0.01"
+                      min={plan === 'research' ? 0 : MIN_PRICE_LAMPORTS}
+                      step="1"
                       disabled={plan === 'research'}
                     />
                   </div>
