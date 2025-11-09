@@ -983,12 +983,6 @@ export const ModelDetail = () => {
                     </div>
                   </div>
                 )}
-                {model.integrity.storage && (
-                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <span className="text-sm font-medium text-gray-700">스토리지</span>
-                    <span className="text-sm text-gray-900">{model.integrity.storage}</span>
-                  </div>
-                )}
                 {!model.integrity.cid && !model.integrity.txHash && !model.integrity.storage && (
                   <p className="text-sm text-gray-600">저장 및 무결성 정보가 제공되지 않았습니다.</p>
                 )}
