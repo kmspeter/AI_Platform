@@ -21,7 +21,7 @@ import {
   ShoppingCart,
   Copy,
   Check,
-  Shield,
+  ExternalLink,
   Bot,
   Loader2,
   AlertCircle,
@@ -928,52 +928,70 @@ export const ModelDetail = () => {
         <section id="integrity" className="mb-16">
           <h2 className="text-2xl font-semibold text-gray-900 mb-6">저장/무결성</h2>
           <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <h3 className="text-lg font-medium text-gray-900 mb-4">저장 정보</h3>
-                <div className="space-y-3">
-                  {model.integrity.cid && (
-                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                      <span className="text-sm font-medium text-gray-700">CID</span>
-                      <div className="flex items-center space-x-2">
-                        <code className="text-sm text-gray-900">{model.integrity.cid}</code>
-                        <button
-                          onClick={() => copyToClipboard(model.integrity.cid, 'cid')}
-                          className="text-gray-400 hover:text-gray-600"
-                        >
-                          {copiedHash === 'cid' ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
-                        </button>
-                      </div>
+            <div className="space-y-4">
+              <h3 className="text-lg font-medium text-gray-900">저장 정보</h3>
+              <div className="space-y-3">
+                {model.integrity.cid && (
+                  <div className="flex items-start justify-between p-3 bg-gray-50 rounded-lg">
+                    <span className="text-sm font-medium text-gray-700">IPFS CID</span>
+                    <div className="flex items-center space-x-2">
+                      <code className="text-sm text-gray-900 break-all max-w-[16rem] md:max-w-sm">
+                        {model.integrity.cid}
+                      </code>
+                      <a
+                        href={`https://ipfs.io/ipfs/${model.integrity.cid}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:text-blue-700"
+                        aria-label="IPFS에서 CID 확인"
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                      </a>
+                      <button
+                        onClick={() => copyToClipboard(model.integrity.cid, 'cid')}
+                        className="text-gray-400 hover:text-gray-600"
+                        aria-label="CID 복사"
+                      >
+                        {copiedHash === 'cid' ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
+                      </button>
                     </div>
-                  )}
-                  {model.integrity.txHash && (
-                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                      <span className="text-sm font-medium text-gray-700">트랜잭션</span>
-                      <div className="flex items-center space-x-2">
-                        <code className="text-sm text-gray-900">{model.integrity.txHash}</code>
-                        <button
-                          onClick={() => copyToClipboard(model.integrity.txHash, 'tx')}
-                          className="text-gray-400 hover:text-gray-600"
-                        >
-                          {copiedHash === 'tx' ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
-                        </button>
-                      </div>
+                  </div>
+                )}
+                {model.integrity.txHash && (
+                  <div className="flex items-start justify-between p-3 bg-gray-50 rounded-lg">
+                    <span className="text-sm font-medium text-gray-700">트랜잭션 해시</span>
+                    <div className="flex items-center space-x-2">
+                      <code className="text-sm text-gray-900 break-all max-w-[16rem] md:max-w-sm">
+                        {model.integrity.txHash}
+                      </code>
+                      <a
+                        href={`https://explorer.solana.com/tx/${model.integrity.txHash}?cluster=devnet`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:text-blue-700"
+                        aria-label="솔라나 탐색기에서 트랜잭션 확인"
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                      </a>
+                      <button
+                        onClick={() => copyToClipboard(model.integrity.txHash, 'tx')}
+                        className="text-gray-400 hover:text-gray-600"
+                        aria-label="트랜잭션 해시 복사"
+                      >
+                        {copiedHash === 'tx' ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
+                      </button>
                     </div>
-                  )}
-                </div>
-              </div>
-              <div>
-                <h3 className="text-lg font-medium text-gray-900 mb-4">검증 상태</h3>
-                <div className="space-y-3">
-                  <div className="flex items-center space-x-3 p-3 bg-green-50 rounded-lg">
-                    <Shield className="h-5 w-5 text-green-600" />
-                    <span className="text-sm font-medium text-green-800">검증됨</span>
                   </div>
-                  <div className="text-sm text-gray-600">
-                    <p>스토리지: {model.integrity.storage}</p>
-                    <p>마지막 검증: 2시간 전</p>
+                )}
+                {model.integrity.storage && (
+                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <span className="text-sm font-medium text-gray-700">스토리지</span>
+                    <span className="text-sm text-gray-900">{model.integrity.storage}</span>
                   </div>
-                </div>
+                )}
+                {!model.integrity.cid && !model.integrity.txHash && !model.integrity.storage && (
+                  <p className="text-sm text-gray-600">저장 및 무결성 정보가 제공되지 않았습니다.</p>
+                )}
               </div>
             </div>
           </div>
