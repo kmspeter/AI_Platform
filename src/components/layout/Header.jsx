@@ -471,13 +471,13 @@ export const Header = ({ onWalletConnect }) => {
                 <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-lg border border-gray-200 py-2">
                   <div className="px-4 py-2 border-b border-gray-100 flex items-center justify-between">
                     <h3 className="text-sm font-medium text-gray-900">알림</h3>
-                    <span className="text-xs text-gray-500">{notifications.length}개</span>
+                    <span className="text-xs text-gray-500">{Math.min(notifications.length, 5)}개</span>
                   </div>
-                  <div className="max-h-64 overflow-y-auto">
+                  <div className="max-h-64 overflow-y-auto overflow-x-hidden">
                     {notifications.length === 0 ? (
                       <div className="px-4 py-6 text-center text-sm text-gray-500">새로운 알림이 없습니다.</div>
                     ) : (
-                      notifications.map((notification) => {
+                      notifications.slice(0, 5).map((notification) => {
                         const levelClass = notificationLevelClasses[notification.level] || notificationLevelClasses.info;
                         const typeLabel = notificationTypeLabels[notification.type] || '알림';
                         const displayTitle = notification.title || notification.message || '새로운 알림';
