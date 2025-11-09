@@ -239,6 +239,65 @@ export const Checkout = () => {
   const totalLamports = planPriceLamports + platformFeeLamports + networkFeeEstimateLamports;
   const rights = selectedPlan?.rights?.length ? selectedPlan.rights : (modelData?.licenseTags || []);
   const planMetadata = selectedPlan?.metadata || {};
+  const normalizedLicenseTags = useMemo(() => {
+    if (!Array.isArray(modelData?.licenseTags)) {
+      return [];
+    }
+
+    return modelData.licenseTags
+      .map((tag) => (typeof tag === 'string' ? tag.trim() : ''))
+      .filter(Boolean);
+  }, [modelData]);
+
+  const normalizedPlanRights = useMemo(() => {
+    if (!Array.isArray(selectedPlan?.rights)) {
+      return [];
+    }
+
+    return selectedPlan.rights
+      .map((tag) => (typeof tag === 'string' ? tag.trim() : ''))
+      .filter(Boolean);
+  }, [selectedPlan]);
+
+  const licenseIndicators = useMemo(
+    () => [...normalizedLicenseTags, ...normalizedPlanRights],
+    [normalizedLicenseTags, normalizedPlanRights],
+  );
+
+  const isOpenSourceModel = useMemo(() =>
+    licenseIndicators.some((tag) => {
+      const normalized = tag.toLowerCase().replace(/[\s\-_\/]+/g, '');
+      return normalized.includes('opensource') || tag.includes('오픈소스');
+    }),
+  [licenseIndicators]);
+
+  const isResearchModel = useMemo(() =>
+    licenseIndicators.some((tag) => {
+      const normalized = tag.toLowerCase().replace(/[\s\-_\/]+/g, '');
+      return normalized.includes('research') || tag.includes('연구');
+    }),
+  [licenseIndicators]);
+
+  const isFreePlan = useMemo(() => {
+    const priceValue = coerceNumber(selectedPlan?.price);
+    if (priceValue == null) {
+      return false;
+    }
+    return priceValue <= 0;
+  }, [selectedPlan]);
+
+  const shouldSkipBackendVerification = useMemo(() => {
+    if (!selectedPlan) {
+      return false;
+    }
+    if (isOpenSourceModel) {
+      return true;
+    }
+    if (isResearchModel && isFreePlan) {
+      return true;
+    }
+    return false;
+  }, [isFreePlan, isOpenSourceModel, isResearchModel, selectedPlan]);
 
   const notifyPaymentSuccess = useCallback(({ order, signature, verificationStatus: status, verificationData }) => {
     if (!order) return;
@@ -545,34 +604,73 @@ export const Checkout = () => {
         onchainTx: signature,
       };
 
-      setVerificationRequest({
-        endpoint: BACKEND_VERIFICATION_ENDPOINT,
-        payload: verificationPayload,
-      });
+      if (!shouldSkipBackendVerification) {
+        setVerificationRequest({
+          endpoint: BACKEND_VERIFICATION_ENDPOINT,
+          payload: verificationPayload,
+        });
+      } else {
+        setVerificationRequest(null);
+      }
 
       console.log('⏳ 백엔드 검증 시작:');
       console.log('📤 백엔드로 전송할 데이터:');
       console.log(JSON.stringify(verificationPayload, null, 2));
 
+      let autoVerificationData = null;
+      if (shouldSkipBackendVerification) {
+        autoVerificationData = {
+          success: true,
+          skipped: true,
+          reason: 'OPEN_SOURCE_OR_RESEARCH_FREE',
+        };
+      }
+
       setTransactionResult({
         transactionSignature: signature,
         order: orderDetails,
         wallet: walletDetails,
-        backend: {
-          endpoint: BACKEND_VERIFICATION_ENDPOINT,
-          payload: verificationPayload,
-        },
+        backend: shouldSkipBackendVerification
+          ? null
+          : {
+              endpoint: BACKEND_VERIFICATION_ENDPOINT,
+              payload: verificationPayload,
+            },
         metadata: transactionMetadata,
-        verification: {
-          status: 'PENDING',
-          message: '백엔드 검증 대기 중입니다.',
-          timestamp: Date.now(),
-        },
+        verification: shouldSkipBackendVerification
+          ? {
+              status: 'COMPLETED',
+              message: '오픈소스/연구용 무료 모델은 백엔드 검증 없이 완료됩니다.',
+              completedAt: Date.now(),
+              backendResponse: autoVerificationData,
+            }
+          : {
+              status: 'PENDING',
+              message: '백엔드 검증 대기 중입니다.',
+              timestamp: Date.now(),
+            },
       });
 
-      setVerificationStatus('pending');
+      setVerificationStatus(shouldSkipBackendVerification ? 'completed' : 'pending');
       setPaymentSuccess(true);
-      setPaymentStatus('트랜잭션이 완료되었습니다. 백엔드 검증 중입니다.');
+      setPaymentStatus(
+        shouldSkipBackendVerification
+          ? '결제가 완료되었습니다. 백엔드 검증이 필요하지 않습니다.'
+          : '트랜잭션이 완료되었습니다. 백엔드 검증 중입니다.'
+      );
+      if (shouldSkipBackendVerification) {
+        setPaymentError('');
+      }
+
+      if (shouldSkipBackendVerification) {
+        notifyPaymentSuccess({
+          order: orderDetails,
+          signature,
+          verificationStatus: 'COMPLETED_NO_BACKEND',
+          verificationData: autoVerificationData,
+        });
+        return;
+      }
 
       // 백엔드 검증 요청
       try {
