@@ -48,6 +48,8 @@ import { ComparisonBar } from '../components/market/ComparisonBar';
 import { ComparisonOverlay } from '../components/market/ComparisonOverlay';
 import { convertSolToLamports } from '../utils/currency';
 
+const PRICE_SLIDER_MAX_LAMPORTS = convertSolToLamports(1000);
+
 // API 서비스 함수
 const apiService = {
   // 환경변수 기반 baseURL 설정
@@ -101,6 +103,13 @@ const apiService = {
       const licenseInfo = normalizeLicense(apiModel.license);
       const pricingPlans = extractPricingPlans(apiModel.pricing);
       const defaultPlan = selectDefaultPlan(pricingPlans);
+      const cheapestPlan = pricingPlans.length > 0
+        ? pricingPlans.reduce((minPlan, plan) => (plan.price < minPlan.price ? plan : minPlan), pricingPlans[0])
+        : defaultPlan;
+      const defaultAmount = convertSolToLamports(defaultPlan.price);
+      const lowestAmount = convertSolToLamports(cheapestPlan.price);
+      const effectiveAmount = Number.isFinite(lowestAmount) ? lowestAmount : defaultAmount;
+      const pricingType = effectiveAmount > 0 ? 'paid' : 'free';
       const normalizedModality = normalizeModality(apiModel.modality);
       const metricDisplay = prepareMetricDisplay(metrics, normalizedModality);
       const metricHighlights = metricDisplay.slice(0, 2);
@@ -113,12 +122,16 @@ const apiService = {
         rawModality: apiModel.modality || '',
         license: licenseInfo.primary,
         pricing: {
-          type: defaultPlan.price > 0 ? 'paid' : 'free',
-          amount: convertSolToLamports(defaultPlan.price),
+          type: pricingType,
+          amount: effectiveAmount,
           currency: 'LAMPORTS',
           billingType: defaultPlan.billingType,
           planId: defaultPlan.id,
-          planName: defaultPlan.name
+          planName: defaultPlan.name,
+          defaultAmount,
+          lowestAmount: effectiveAmount,
+          lowestPlanId: cheapestPlan.id,
+          lowestPlanName: cheapestPlan.name,
         },
         pricingPlans,
         metrics,
@@ -210,27 +223,35 @@ export const Market = () => {
   const filteredModels = useMemo(() => {
     return models.filter(model => {
       // 검색 필터
-      if (filters.search && 
-          !model.name.toLowerCase().includes(filters.search.toLowerCase()) && 
+      if (filters.search &&
+          !model.name.toLowerCase().includes(filters.search.toLowerCase()) &&
           !model.creator.toLowerCase().includes(filters.search.toLowerCase())) {
         return false;
       }
-      
+
       // 모달리티 필터
       if (filters.modality.length > 0 && !filters.modality.includes(model.modality)) {
         return false;
       }
-      
+
       // 라이센스 필터
       if (filters.license.length > 0 && !filters.license.includes(model.license)) {
         return false;
       }
-      
+
       // 가격 범위 필터
-      if (model.pricing.type === 'paid' && model.pricing.amount > filters.priceRange[1]) {
-        return false;
+      const maxPrice = filters.priceRange?.[1];
+      const hasPriceLimit = Number.isFinite(maxPrice) && maxPrice < PRICE_SLIDER_MAX_LAMPORTS;
+      if (hasPriceLimit && model.pricing.type === 'paid') {
+        const modelPrice = Number.isFinite(model.pricing?.lowestAmount)
+          ? model.pricing.lowestAmount
+          : Number(model.pricing?.amount ?? 0);
+
+        if (modelPrice > maxPrice) {
+          return false;
+        }
       }
-      
+
       // 성능 필터
       const metricValues = Object.values(model.metrics);
       const maxMetric = metricValues.length > 0 ? Math.max(...metricValues) : 0;
