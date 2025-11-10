@@ -85,8 +85,10 @@ export const extractPricingPlans = (pricing) => {
     return [];
   }
 
-  return Object.entries(pricing).reduce((plans, [planId, planData]) => {
+  const plans = Object.entries(pricing).reduce((plans, [planId, planData]) => {
+    // planData 유효성 검증
     if (!planData || typeof planData !== 'object') {
+      console.warn(`Invalid pricing plan: ${planId}`, planData);
       return plans;
     }
 
@@ -98,32 +100,40 @@ export const extractPricingPlans = (pricing) => {
           ? Number.parseFloat(rawPrice)
           : 0;
 
+    // rights 또는 permissions 필드 지원
     const rights = Array.isArray(planData.rights)
       ? planData.rights
-      : [];
+      : Array.isArray(planData.permissions)
+        ? planData.permissions
+        : [];
 
-    plans.push({
+    const plan = {
       id: planId,
       name: planData.description || planId,
       price: Number.isFinite(price) ? Number(price) : 0,
-      billingType: planData.billingType || '',
+      billingType: planData.billingType || 'free',
       rights,
       metadata: {
         monthlyTokenLimit: planData.monthlyTokenLimit,
         monthlyGenerationLimit: planData.monthlyGenerationLimit,
         monthlyRequestLimit: planData.monthlyRequestLimit,
       },
-    });
+    };
 
+    console.log(`Extracted plan: ${planId}`, plan); // 디버깅용
+    plans.push(plan);
     return plans;
   }, []);
+
+  console.log('All pricing plans:', plans); // 디버깅용
+  return plans;
 };
 
 export const selectDefaultPlan = (plans) => {
-  if (!plans || plans.length === 0) {
+  if (!plans || !Array.isArray(plans) || plans.length === 0) {
     return {
-      id: 'standard',
-      name: '표준',
+      id: 'free',
+      name: '무료',
       price: 0,
       billingType: 'free',
       rights: [],
@@ -131,7 +141,35 @@ export const selectDefaultPlan = (plans) => {
     };
   }
 
-  return plans.find((plan) => plan.id === 'standard') || plans[0];
+  // 1. 'standard' 플랜 우선
+  const standardPlan = plans.find((plan) => plan.id === 'standard');
+  if (standardPlan) return standardPlan;
+
+  // 2. 'commercial' 플랜 다음 우선순위
+  const commercialPlan = plans.find((plan) => plan.id === 'commercial');
+  if (commercialPlan) return commercialPlan;
+
+  // 3. 'enterprise' 플랜
+  const enterprisePlan = plans.find((plan) => plan.id === 'enterprise');
+  if (enterprisePlan) return enterprisePlan;
+
+  // 4. 유료 플랜 (가장 저렴한 것)
+  const paidPlans = plans.filter((plan) => plan.price > 0);
+  if (paidPlans.length > 0) {
+    return paidPlans.reduce((min, plan) => 
+      plan.price < min.price ? plan : min
+    );
+  }
+
+  // 5. 첫 번째 플랜
+  return plans[0] || {
+    id: 'free',
+    name: '무료',
+    price: 0,
+    billingType: 'free',
+    rights: [],
+    metadata: {},
+  };
 };
 
 const METRIC_METADATA = {
